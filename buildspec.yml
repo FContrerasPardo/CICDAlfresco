@@ -1,4 +1,4 @@
-version: 0.2
+version: 0.1
 env:
   secrets-manager:
     AWS_ACCESS_KEY_ID: "build/eks:eks_access_key_id"
@@ -12,47 +12,11 @@ phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-      - aws sts get-caller-identity
-      - echo Configuring access to EKS...
-      - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
-      - kubectl get pods -n alfresco
-      - export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain ${AWS_CODEART_DOMAIN} --domain-owner ${AWS_DOMAIN_ACCOUNT} --query authorizationToken --output text`
-      - export ALF_PRIVATE_REPO_USR="${ALF_PRIVATE_REPO_USR}"
-      - export ALF_PRIVATE_REPO_PWD="${ALF_PRIVATE_REPO_PWD}"
-      - echo Downloading dependencies...
-      - curl https://iikt-installers.s3.us-west-2.amazonaws.com/artifacts/custom_repo.zip -o /tmp/custom_repo.zip
-      - curl https://iikt-installers.s3.us-west-2.amazonaws.com/artifacts/settings-codeartifact.xml -o /tmp/settings.xml
-      - unzip /tmp/custom_repo.zip -d /tmp
-      - echo Compiling API code...
-      - mvn -Dmaven.repo.local=/tmp/custom_repo clean package -nsu -s /tmp/settings.xml
-      - cp target/extensions/grupos-organizacionales-repo*.jar libs/
-      - cp target/extensions/permisos-repo*.jar libs/
-      - cp target/extensions/reportes-repo*.jar libs/
-      - cp target/extensions/api-utils*.jar libs/
-      - cp target/extensions/configuracion-front-model*.jar libs/
-      - cp target/extensions/dato-model*.jar libs/
-      - cp target/extensions/general-model*.jar libs/
-      - cp target/extensions/expediente-model*.jar libs/
-      - cp target/extensions/permisos-aplicaciones-model*.jar libs/
-      - cp target/extensions/regla-negocio-model*.jar libs/
-      - cp target/extensions/sitio-model*.jar libs/
-      - cp target/extensions/tipo-documental-model*.jar libs/
-      - cp target/extensions/transaccion-model*.jar libs/
-      - cp target/extensions/alfresco-utils*.jar libs/
-      - cp target/extensions/rest-client*.jar libs/
-      - cp target/extensions/alfresco-replacement-utils*.jar libs/
-      - cp target/extensions/aws-utils*.jar libs/
   build:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
-      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG --build-arg ACCOUNT_ID=$ACCOUNT_ID .
-      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Pushing the Docker image...
-      - docker push $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-      - echo Updating deployment image...
-      - kubectl set image deployment acs-alfresco-cs-repository alfresco-content-services=$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG -n $NAME_SPACE
