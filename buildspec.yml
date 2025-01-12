@@ -30,14 +30,11 @@ phases:
       - unzip terraform.zip
       - sudo mv terraform /usr/local/bin/
       - terraform --version
-      # Checkout el repositorio
-      - echo Checking out Alfresco CICD repository
-      - git clone https://github.com/FContrerasPardo/CICDAlfresco
-      - cd CICDAlfresco
       # Autenticación en Nexus
       - echo autenticando en Nexus Repository
       - pwd
       - ls -la
+      - ls -la ./scripts # Listar específicamente la carpeta de scripts para verificar
       - chmod +x ./scripts/setup-netrc.sh
       - ./scripts/setup-netrc.sh
       - echo "Validación del archivo .netrc completada"
