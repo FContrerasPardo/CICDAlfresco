@@ -6,7 +6,7 @@ env:
     NEXUS_USER: "build/eks:nexus_user"
     NEXUS_PASSWORD: "build/eks:nexus_password"
 phases:
-  update_instance:
+  pre_build:
     commands:
       - echo Preparando entorno
       - sudo yum update -y
@@ -30,13 +30,11 @@ phases:
       - unzip terraform.zip
       - sudo mv terraform /usr/local/bin/
       - terraform --version
-  checkout_repository:
-    commands:
+      # Checkout el repositorio
       - echo Checking out Alfresco CICD repository
       - git clone https://github.com/FContrerasPardo/CICDAlfresco
       - cd CICDAlfresco
-  nexus_authenticate:
-    commands:
+      # Autenticación en Nexus
       - echo autenticando en Nexus Repository
       - pwd
       - ls -la
@@ -44,8 +42,7 @@ phases:
       - ./setup-netrc.sh
       - echo "Validación del archivo .netrc completada"
       - cat ~/.netrc
-  aws_authenticate:
-    commands:
+      # Autenticación en AWS
       - echo "Autenticando con AWS CLI..."
       - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
       - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
