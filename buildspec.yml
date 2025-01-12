@@ -3,8 +3,8 @@ env:
   secrets-manager:
     AWS_ACCESS_KEY_ID: "build/eks:AWS_ACCESS_KEY_ID"
     AWS_SECRET_ACCESS_KEY: "build/eks:AWS_SECRET_ACCESS_KEY"
-    NEXUS_USER: "build/eks:nexus_user"
-    NEXUS_PASSWORD: "build/eks:nexus_password"
+    NEXUS_USER: "build/eks:NEXUS_USER"
+    NEXUS_PASSWORD: "build/eks:NEXUS_PASSWORD"
 phases:
   pre_build:
     commands:
