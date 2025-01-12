@@ -5,18 +5,246 @@ env:
     AWS_SECRET_ACCESS_KEY: "build/eks:eks_secret_access_key"
     ALF_PRIVATE_REPO_USR: "build/eks:alf_private_repo_usr"
     ALF_PRIVATE_REPO_PWD: "build/eks:alf_private_repo_pwd"
-    AWS_CODEART_DOMAIN: "iikt"
+    NEXUS_USER: "build/eks:nexus_user"
+    NEXUS_PASSWORD: "build/eks:nexus_password"
+    AWS_CODEART_DOMAIN: "tfmfc"
   variables:
-    IMAGE_TAG: "7.2.0.2-0.233"
+    AWS_DEFAULT_REGION: "us-east-1"
+    EKS_NAME: alfresco
+    ECR_NAME: "alfresco"
+    TAG: "latest"
+    TARGETARCH: "linux/amd64"
+    
+    EFS_NAME: "alfresco-efs"
 phases:
+  update_instance:
+    commands:
+      - echo Preparando entorno
+      - sudo yum update -y
+       # Instalación de kubectl
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - chmod +x kubectl
+      - sudo mv kubectl /usr/local/bin/
+      - kubectl version --client
+      # Instalación de eksctl
+      - curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.140.0/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+      - sudo mv /tmp/eksctl /usr/local/bin
+      - eksctl version
+       # Instalación de Helm
+      - curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
+      - chmod 700 get_helm.sh
+      - ./get_helm.sh
+      - helm version | cut -d + -f 1
+      # Instalación de Terraform
+      - echo "Instalando Terraform..."
+      - curl -o terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+      - unzip terraform.zip
+      - sudo mv terraform /usr/local/bin/
+      - terraform --version
+  nexus_authenticate:
+    commands:
+      - echo autenticando en Nexus Repository
+      - pwd
+      - ls -la
+      - chmod +x setup-netrc.sh
+      - ./setup-netrc.sh
+      - echo "Validación del archivo .netrc completada"
+      - cat ~/.netrc
+  aws_authenticate:
+    commands:
+      - echo "Autenticando con AWS CLI..."
+      - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+      - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+      - aws configure set region $AWS_DEFAULT_REGION
+      - aws sts get-caller-identity
+  checkout_repository:
+    commands:
+      - echo Checking out Alfresco CICD repository
+      - git clone https://github.com/FContrerasPardo/CICDAlfresco
+      - cd CICDAlfresco
   pre_build:
     commands:
-      - echo Logging in to Amazon ECR...
-  build:
+      - echo "Iniciando despliegue de infraestructura con Terraform"
+      # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
+      - cd Terraform/
+      - terraform init
+      - terraform plan -var-file="env_dev.tfvars"
+      - terraform apply -auto-approve -var-file="env_dev.tfvars" 
+  setup_ECR:
+    commands:
+      # Crear el repositorio ECR si no existe
+      - echo "Creando repositorio ECR si no existe..."
+      - |
+        REPO_EXISTS=$(aws ecr describe-repositories --repository-names $ECR_NAME --region $AWS_DEFAULT_REGION 2>&1 || true)
+        if echo "$REPO_EXISTS" | grep -q "RepositoryNotFoundException"; then
+          echo "El repositorio no existe. Creándolo..."
+          aws ecr create-repository --repository-name $ECR_NAME --region $AWS_DEFAULT_REGION
+        else
+          echo "El repositorio ya existe."
+        fi
+      - echo "Ejecutando script para limpiar imágenes previas..."
+      - chmod +x ./scripts/create-repositories.sh
+      - ./scripts/clean-repositories.sh
+
+      - echo "Ejecutando script para crear repositorios faltantes..."
+      - chmod +x ./scripts/clean-repositories.sh
+      - ./scripts/create-repositories.sh
+
+      # Obtener la URI del repositorio y exportarla como variable
+      - echo "Obteniendo URI del repositorio..."
+      - ECR_URI=$(aws ecr describe-repositories --repository-names $ECR_NAME --region $AWS_DEFAULT_REGION --query "repositories[0].repositoryUri" --output text)
+      - export REGISTRY=$ECR_URI
+      - export REGISTRY_NAMESPACE=$ECR_NAME
+      - echo "Repositorio: $REGISTRY"
+      - echo "Namespace: $REGISTRY_NAMESPACE"
+      - echo "Tag: $TAG"
+      - echo "Arquitectura: $TARGETARCH"
+
+      # Autenticación con ECR para push de imágenes
+      - echo "Autenticándose con ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REGISTRY
+      - aws sts get-caller-identity
+  bake:
+    commands:
+      - make enterprise
+  create_cluster:
     commands:
       - echo Build started on `date`
-      - echo Building the Docker image...
+      - eksctl create cluster --name $EKS_NAME --region $AWS_DEFAULT_REGION --instance-types m5.xlarge --nodes 4
+      - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
+      - kubectl get pods -n alfresco
+      - eksctl utils associate-iam-oidc-provider --cluster=$EKS_NAME --approve
+  dns_setup:
+    commands:
+      - echo "Configurando DNS Externo con Kubernetes"
+      - kubectl apply -f files/external-dns.yaml
+      - kubectl get configmap external-dns-config -n kube-system
+      - kubectl get pods -n kube-system -l app=external-dns
+      - echo "DNS externo aplicado correctamente."
+  efs_setup:
+    commands:
+  efs_setup:
+    commands:
+      - echo "Obteniendo información de VPC y configurando variables de entorno..."
+
+      # Extraer VPC ID
+      - VPC_ID=$(aws eks describe-cluster --name $EKS_NAME --query "cluster.resourcesVpcConfig.vpcId" --output text)
+      - export VPC_ID
+      - echo "VPC_ID=$VPC_ID" >> $CODEBUILD_ENV_FILE
+
+      # Extraer CIDR de la VPC
+      - VPC_CIDR=$(aws ec2 describe-vpcs --vpc-ids $VPC_ID --query "Vpcs[].CidrBlock" --output text)
+      - export VPC_CIDR
+      - echo "VPC_CIDR=$VPC_CIDR" >> $CODEBUILD_ENV_FILE
+
+      # Extraer File System ID de EFS
+      - FILE_SYSTEM_ID=$(aws efs describe-file-systems --query "FileSystems[0].FileSystemId" --output text)
+      - export FILE_SYSTEM_ID
+      - echo "FILE_SYSTEM_ID=$FILE_SYSTEM_ID" >> $CODEBUILD_ENV_FILE
+
+      # Construir el DNS de EFS
+      - EFS_DNS_NAME="${FILE_SYSTEM_ID}.efs.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - export EFS_DNS_NAME
+      - echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $CODEBUILD_ENV_FILE
+
+      # Configuración de Helm para NFS Client Provisioner
+      - echo "Configurando NFS Client Provisioner con Helm..."
+      - helm repo add stable https://charts.helm.sh/stable
+      - helm install alfresco-nfs-provisioner stable/nfs-client-provisioner \
+        --set nfs.server="$EFS_DNS_NAME" \
+        --set nfs.path="/" \
+        --set storageClass.name="nfs-client" \
+        --set storageClass.archiveOnDelete=false \
+        -n kube-system
+  ebs_setup:
+    commands:
+      - eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve \
+        --role-name AmazonEKS_EBS_CSI_DriverRole
+      - eksctl create addon \
+        --name aws-ebs-csi-driver \
+        --cluster $EKS_CLUSTER_NAME \
+        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
+        --force
+  ingress_setup:
+    commands:
+      - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      - helm repo update
+      - helm install acs-ingress ingress-nginx/ingress-nginx\
+        --set controller.scope.enabled=true \
+        --set controller.scope.namespace=alfresco \
+        --set rbac.create=true \
+        --set controller.config."proxy-body-size"="100m" \
+        --set controller.service.targetPorts.https=80 \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47" \
+        --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.tfmfc.com" \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
+        --set controller.publishService.enabled=true \
+        --atomic \
+        --namespace alfresco
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Pushing the Docker image...
+  deploy_alfresco:
+    commands:
+      - helm install acs ./alfresco-content-services \
+        --set externalPort="443" \
+        --set externalProtocol="https" \
+        --set externalHost="acs.tfmfc.com" \
+        --set persistence.enabled=true \
+        --set persistence.storageClass.enabled=true \
+        --set persistence.storageClass.name="nfs-client" \
+        --set alfresco-repository.persistence.existingClaim="alf-content-pvc" \
+        --set alfresco-repository.persistence.enabled=true \
+        --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+        --set alfresco-sync-service.enabled=false \
+        --set postgresql-sync.enabled=false \
+        --set alfresco-transform-service.transformrouter.replicaCount="1" \
+        --set alfresco-transform-service.pdfrenderer.replicaCount="1" \
+        --set alfresco-transform-service.imagemagick.replicaCount="1" \
+        --set alfresco-transform-service.libreoffice.replicaCount="1" \
+        --set alfresco-transform-service.tika.replicaCount="1" \
+        --set alfresco-transform-service.transformmisc.replicaCount="1" \
+        --set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" \
+        --set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" \
+        --set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" \
+        --set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" \
+        --set alfresco-transform-service.tika.resources.limits.memory="2Gi" \
+        --set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" \
+        --set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" \
+        --set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" \
+        --set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" \
+        --set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" \
+        --set alfresco-transform-service.tika.resources.limits.cpu="250m" \
+        --set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" \
+        --set alfresco-transform-service.filestore.resources.limits.cpu="250m" \
+        --set postgresql.primary.resources.requests.cpu="250m" \
+        --set postgresql.primary.resources.limits.cpu="500m" \
+        --set postgresql.primary.resources.limits.memory="6Gi" \
+        --set alfresco-share.resources.limits.cpu="250m" \
+        --set alfresco-search-enterprise.resources.requests.cpu="250m" \
+        --set alfresco-search-enterprise.resources.limits.cpu="250m" \
+        --set alfresco-repository.resources.requests.cpu="500m" \
+        --set alfresco-repository.resources.limits.cpu="500m" \
+        --set alfresco-repository.readinessProbe.periodSeconds="200" \
+        --set alfresco-repository.livenessProbe.periodSeconds="200" \
+        --set alfresco-repository.startupProbe.periodSeconds="200" \
+        --set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" \
+        --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" \
+        --set alfresco-search-enterprise.reindexing.enabled=false \
+        --namespace=alfresco
