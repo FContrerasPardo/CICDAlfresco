@@ -6,7 +6,7 @@ env:
     NEXUS_USER: "build/eks:NEXUS_USER"
     NEXUS_PASSWORD: "build/eks:NEXUS_PASSWORD"
 phases:
-  pre_build:
+  install:
     commands:
       - echo Preparando entorno
       - sudo yum update -y
@@ -45,4 +45,6 @@ phases:
       - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
       - aws configure set region $AWS_DEFAULT_REGION
       - aws sts get-caller-identity
-
+  pre_build:
+    commands:
+     - echo "Creando repositorio ECR si no existe..."
