@@ -34,9 +34,9 @@ phases:
       - echo autenticando en Nexus Repository
       - pwd
       - ls -la
-      - ls -la ./scripts # Listar específicamente la carpeta de scripts para verificar
-      - chmod +x ./scripts/setup-netrc.sh
-      - ./scripts/setup-netrc.sh
+      - ls -la ./Scripts # Listar específicamente la carpeta de scripts para verificar
+      - chmod +x ./Scripts/setup-netrc.sh
+      - ./Scripts/setup-netrc.sh
       - echo "Validación del archivo .netrc completada"
       - cat ~/.netrc
       # Autenticación en AWS
