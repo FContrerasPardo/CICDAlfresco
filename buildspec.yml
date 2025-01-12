@@ -1,21 +1,10 @@
 version: 0.1
 env:
   secrets-manager:
-    AWS_ACCESS_KEY_ID: "build/eks:eks_access_key_id"
-    AWS_SECRET_ACCESS_KEY: "build/eks:eks_secret_access_key"
-    ALF_PRIVATE_REPO_USR: "build/eks:alf_private_repo_usr"
-    ALF_PRIVATE_REPO_PWD: "build/eks:alf_private_repo_pwd"
+    AWS_ACCESS_KEY_ID: "build/eks:AWS_ACCESS_KEY_ID"
+    AWS_SECRET_ACCESS_KEY: "build/eks:AWS_SECRET_ACCESS_KEY"
     NEXUS_USER: "build/eks:nexus_user"
     NEXUS_PASSWORD: "build/eks:nexus_password"
-    AWS_CODEART_DOMAIN: "tfmfc"
-  variables:
-    AWS_DEFAULT_REGION: "us-east-1"
-    EKS_NAME: alfresco
-    ECR_NAME: "alfresco"
-    TAG: "latest"
-    TARGETARCH: "linux/amd64"
-    
-    EFS_NAME: "alfresco-efs"
 phases:
   update_instance:
     commands:
