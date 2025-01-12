@@ -38,8 +38,8 @@ phases:
       - echo autenticando en Nexus Repository
       - pwd
       - ls -la
-      - chmod +x setup-netrc.sh
-      - ./setup-netrc.sh
+      - chmod +x ./scripts/setup-netrc.sh
+      - ./scripts/setup-netrc.sh
       - echo "Validación del archivo .netrc completada"
       - cat ~/.netrc
       # Autenticación en AWS
