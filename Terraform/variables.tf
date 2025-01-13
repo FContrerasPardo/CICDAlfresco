@@ -1,4 +1,3 @@
-
 # AWS Variables:
 variable "aws_access_key" {
   type    = string
@@ -15,22 +14,10 @@ variable "aws_region" {
   description = "AWS region"
 }
 
-variable "aws_subnet_id" {
-  type    = string
-  description = "AWS Subnet"
-}
-variable "aws_vpc_id" {
-  type    = string
-  description = "AWS vpc Id "
+variable "role" {
+  description = "Role EKS"
 }
 
-variable "aws_pair_key" {
-  type    = string
-  description = "AWS pair key"
-}
-
-variable "aws_instance_type" {
-  type    = string
-  description = "AWS instance_type"
-  default     = "t2.micro"
+variable "cluster_name" {
+  description = "nombre del cluster EKS"
 }

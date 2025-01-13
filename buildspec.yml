@@ -49,9 +49,8 @@ phases:
     commands:
       # Crear el cluster
       # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
-      
       - echo "Iniciando despliegue de infraestructura con Terraform"
-      - cd terraform2/
+      - cd Terraform
       - ls -la
       - terraform init
       - terraform plan -var-file="env_dev.tfvars"
