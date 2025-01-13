@@ -126,7 +126,7 @@ phases:
       - kubectl get pods -n ${NAMESPACE}
       # Habilitar el proveedor OIDC necesario para instalar complementos adicionales de EKS más adelante:
       - eksctl utils associate-iam-oidc-provider --cluster=$EKS_NAME --approve
-      # configurar cuenta de servicio y Addon para Driver de CSI
+      # ebs_setup: configurar cuenta de servicio y Addon para Driver de CSI
       - eksctl create iamserviceaccount \
         --name ebs-csi-controller-sa \
         --namespace kube-system \

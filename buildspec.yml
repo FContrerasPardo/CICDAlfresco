@@ -48,9 +48,36 @@ phases:
   pre_build:
     commands:
       # Crear el cluster
-      - echo "Iniciando despliegue de infraestructura con Terraform"
       # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
+      
+      - echo "Iniciando despliegue de infraestructura con Terraform"
       - cd terraform2/
+      - ls -la
       - terraform init
       - terraform plan -var-file="env_dev.tfvars"
       - terraform apply -auto-approve -var-file="env_dev.tfvars" 
+      # Capturar outputs de Terraform
+      - VPC_ID=$(terraform output -raw vpc_id)
+      - export VPC_ID
+      - echo "VPC_ID=$VPC_ID" >> $CODEBUILD_ENV_FILE
+      - EFS_ARN=$(terraform output -raw efs_arn)
+      - export EFS_ARN
+      - echo "EFS_ARN=$EFS_ARN" >> $CODEBUILD_ENV_FILE
+      # Validar y Configurar Cluster 
+      - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
+      - kubectl get pods -n ${NAMESPACE}
+      # Habilitar el proveedor OIDC necesario para instalar complementos adicionales de EKS más adelante:
+      - eksctl utils associate-iam-oidc-provider --cluster=$EKS_NAME --approve
+      # ebs_setup: configurar cuenta de servicio y Addon para Driver de CSI
+      - eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_NAME \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve \
+        --role-name AmazonEKS_EBS_CSI_DriverRole
+      - eksctl create addon \
+        --name aws-ebs-csi-driver \
+        --cluster $EKS_NAME \
+        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
+        --force
