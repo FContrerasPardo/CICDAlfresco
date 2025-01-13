@@ -1,0 +1,5 @@
+aws_access_key = "${AWS_ACCESS_KEY_ID}"
+aws_secret_key = "${AWS_SECRET_ACCESS_KEY}"
+aws_region     = "${AWS_DEFAULT_REGION}"
+role           = "arn:aws:iam::706722401192:role/eksctl-alfresco-cluster-ServiceRole"
+cluster_name   = "${EKS_NAME}"
