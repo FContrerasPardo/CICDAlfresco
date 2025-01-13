@@ -114,6 +114,64 @@ phases:
   bake:
     commands:
       - make enterprise
+
+
+
+  pre_build:
+    commands:
+      # Crear el cluster
+      - echo "Creating Cluster"
+      - eksctl create cluster --name $EKS_NAME --region $AWS_DEFAULT_REGION --instance-types m5.xlarge --nodes 4
+      - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
+      - kubectl get pods -n ${NAMESPACE}
+      # Habilitar el proveedor OIDC necesario para instalar complementos adicionales de EKS más adelante:
+      - eksctl utils associate-iam-oidc-provider --cluster=$EKS_NAME --approve
+      # configurar cuenta de servicio y Addon para Driver de CSI
+      - eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_NAME \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve \
+        --role-name AmazonEKS_EBS_CSI_DriverRole
+      - eksctl create addon \
+        --name aws-ebs-csi-driver \
+        --cluster $EKS_NAME \
+        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
+        --force
+      
+
+
+      # Crear el DNS Externo
+      - echo "Configurando DNS Externo con Kubernetes"
+      - kubectl apply -f files/external-dns.yaml
+      - kubectl get configmap external-dns-config -n kube-system
+      - kubectl get pods -n kube-system -l app=external-dns
+      - echo "DNS externo aplicado correctamente."
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   create_cluster:
     commands:
       - echo Build started on `date`
@@ -121,6 +179,20 @@ phases:
       - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
       - kubectl get pods -n alfresco
       - eksctl utils associate-iam-oidc-provider --cluster=$EKS_NAME --approve
+  ebs_setup:
+    commands:
+      - eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve \
+        --role-name AmazonEKS_EBS_CSI_DriverRole
+      - eksctl create addon \
+        --name aws-ebs-csi-driver \
+        --cluster $EKS_CLUSTER_NAME \
+        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
+        --force
   dns_setup:
     commands:
       - echo "Configurando DNS Externo con Kubernetes"
@@ -161,20 +233,7 @@ phases:
         --set storageClass.name="nfs-client" \
         --set storageClass.archiveOnDelete=false \
         -n kube-system
-  ebs_setup:
-    commands:
-      - eksctl create iamserviceaccount \
-        --name ebs-csi-controller-sa \
-        --namespace kube-system \
-        --cluster $EKS_CLUSTER_NAME \
-        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
-        --approve \
-        --role-name AmazonEKS_EBS_CSI_DriverRole
-      - eksctl create addon \
-        --name aws-ebs-csi-driver \
-        --cluster $EKS_CLUSTER_NAME \
-        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
-        --force
+
   ingress_setup:
     commands:
       - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx

@@ -47,4 +47,10 @@ phases:
       - aws sts get-caller-identity
   pre_build:
     commands:
-     - echo "Creando repositorio ECR si no existe..."
+      # Crear el cluster
+      - echo "Iniciando despliegue de infraestructura con Terraform"
+      # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
+      - cd terraform2/
+      - terraform init
+      - terraform plan -var-file="env_dev.tfvars"
+      - terraform apply -auto-approve -var-file="env_dev.tfvars" 
