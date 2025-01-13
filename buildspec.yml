@@ -51,7 +51,7 @@ phases:
       # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
       - echo "Iniciando despliegue de infraestructura con Terraform"
       - export EKS_SERVICE_ROLE_ARN=$(aws iam list-roles --query "Roles[?contains(RoleName, 'cluster-ServiceRole')].Arn" --output text)
-      - echo "Service Role ARN obtenido: $EKS_SERVICE_ROLE_ARN"
+      - echo "Service Role ARN obtenido $EKS_SERVICE_ROLE_ARN"
       - cd Terraform && ls -la
       - cd Terraform && terraform init
       - terraform plan \
