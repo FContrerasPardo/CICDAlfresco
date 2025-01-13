@@ -54,18 +54,8 @@ phases:
       - echo "Service Role ARN obtenido $EKS_SERVICE_ROLE_ARN"
       - cd Terraform && ls -la
       - cd Terraform && terraform init
-      - terraform plan \
-          -var="aws_access_key=$AWS_ACCESS_KEY_ID" \
-          -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" \
-          -var="aws_region=$AWS_DEFAULT_REGION" \
-          -var="cluster_name=$EKS_NAME" \
-          -var="role=$EKS_SERVICE_ROLE_ARN"
-      - terraform apply -auto-approve \
-          -var="aws_access_key=$AWS_ACCESS_KEY_ID" \
-          -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" \
-          -var="aws_region=$AWS_DEFAULT_REGION" \
-          -var="cluster_name=$EKS_NAME" \
-          -var="role=$EKS_SERVICE_ROLE_ARN"
+      - terraform plan -var="aws_access_key=$AWS_ACCESS_KEY_ID" -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
+      - terraform apply -auto-approve -var="aws_access_key=$AWS_ACCESS_KEY_ID" -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
       # Capturar outputs de Terraform
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID
@@ -79,15 +69,5 @@ phases:
       # Habilitar el proveedor OIDC necesario para instalar complementos adicionales de EKS más adelante:
       - eksctl utils associate-iam-oidc-provider --cluster=$EKS_NAME --approve
       # ebs_setup: configurar cuenta de servicio y Addon para Driver de CSI
-      - eksctl create iamserviceaccount \
-        --name ebs-csi-controller-sa \
-        --namespace kube-system \
-        --cluster $EKS_NAME \
-        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
-        --approve \
-        --role-name AmazonEKS_EBS_CSI_DriverRole
-      - eksctl create addon \
-        --name aws-ebs-csi-driver \
-        --cluster $EKS_NAME \
-        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
-        --force
+      - eksctl create iamserviceaccount --name ebs-csi-controller-sa --namespace kube-system --cluster $EKS_NAME --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve --role-name AmazonEKS_EBS_CSI_DriverRole
+      - eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_NAME --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
