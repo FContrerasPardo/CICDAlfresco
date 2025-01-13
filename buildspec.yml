@@ -54,8 +54,8 @@ phases:
       - echo "Service Role ARN obtenido $EKS_SERVICE_ROLE_ARN 1"
       - cd Terraform && ls -la
       - cd Terraform && terraform init
-      - terraform plan -var="aws_access_key=$AWS_ACCESS_KEY_ID" -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
-      - terraform apply -auto-approve -var="aws_access_key=$AWS_ACCESS_KEY_ID" -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
+      - cd Terraform && terraform plan -var="aws_access_key=$AWS_ACCESS_KEY_ID" -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
+      - cd Terraform && terraform apply -auto-approve -var="aws_access_key=$AWS_ACCESS_KEY_ID" -var="aws_secret_key=$AWS_SECRET_ACCESS_KEY" -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
       # Capturar outputs de Terraform
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID
