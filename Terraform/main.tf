@@ -1,5 +1,14 @@
+terraform {
+  backend "s3" {
+    bucket = var.terraform_bucket_name
+    key    = "terraform/terraform.tfstate"
+    region = var.aws_region
+    encrypt = true
+  }
+}
+
 provider "aws" {
-  region                  = var.aws_region
+  region                   = var.aws_region
   shared_credentials_files = ["$HOME/.aws/credentials"]
 }
 

@@ -3,6 +3,11 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "terraform_bucket_name" {
+  description = "Nombre del bucket de S3 para almacenar el estado de Terraform"
+  default     = "tfm-terraform"
+}
+
 variable "cluster_name" {
   description = "El nombre del clúster EKS"
   default     = "alfresco-cluster"
