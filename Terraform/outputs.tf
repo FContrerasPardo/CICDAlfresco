@@ -34,18 +34,14 @@ output "efs_mount_targets" {
   ]
 }
 
-output "node_group_name" {
-  value = aws_eks_node_group.alfresco_node_group.node_group_name
-}
-
-output "efs_id" {
-  value = aws_efs_file_system.alfresco_efs.id
-}
-
 output "efs_storage_class_name" {
   value = kubernetes_storage_class.efs_storage_class.metadata[0].name
 }
 
 output "efs_persistent_volume_claim" {
   value = kubernetes_persistent_volume_claim.efs_pvc.metadata[0].name
+}
+
+output "node_group_name" {
+  value = aws_eks_node_group.alfresco_node_group.node_group_name
 }
