@@ -50,12 +50,12 @@ phases:
       # Crear el cluster
       # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
       - echo "Iniciando despliegue de infraestructura con Terraform"
-      - export EKS_SERVICE_ROLE_ARN=$(aws iam list-roles --query "Roles[?contains(RoleName, 'cluster-ServiceRole')].Arn" --output text)
+      - export EKS_SERVICE_ROLE_ARN=$(aws iam list-roles --query "Roles[?contains(RoleName, 'eksctl-${EKS_NAME}-cluster-ServiceRole')][0].Arn" --output text)
       - echo "Service Role ARN obtenido $EKS_SERVICE_ROLE_ARN 1"
       - cd Terraform && ls -la
       - cd Terraform && terraform init
       - cd Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
-      - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="role=$EKS_SERVICE_ROLE_ARN"
+      - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="node_role_arn=$EKS_SERVICE_ROLE_ARN"
       # Capturar outputs de Terraform
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID

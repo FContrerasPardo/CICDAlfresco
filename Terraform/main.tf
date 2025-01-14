@@ -6,7 +6,7 @@ provider "aws" {
 # Definición del Clúster EKS usando las subnets y VPC creadas en network.tf
 resource "aws_eks_cluster" "alfresco_cluster" {
   name     = var.cluster_name
-  role_arn = var.role
+  role_arn = var.cluster_service_role_arn
 
   vpc_config {
     subnet_ids = [

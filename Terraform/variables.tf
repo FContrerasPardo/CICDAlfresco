@@ -9,8 +9,13 @@ variable "cluster_name" {
 }
 
 
+variable "cluster_service_role_arn" {
+  description = "ARN del rol IAM de servicio para el cluster de EKS"
+  default     = "arn:aws:iam::706722401192:role/eksctl-alfresco-cluster-ServiceRole"
+}
 variable "node_role_arn" {
   description = "ARN del rol IAM para los nodos del clúster EKS"
+  default     = "arn:aws:iam::706722401192:role/eksctl-alfresco-nodegroup"
 }
 
 variable "ssh_key_name" {
