@@ -1,23 +1,19 @@
-# AWS Variables:
-variable "aws_access_key" {
-  type    = string
-  description = "AWS Access key"
-}
-variable "aws_secret_key" {
-  type    = string
-  description = "AWS Secret key"
-}
-
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
-  description = "AWS region"
-}
-
-variable "role" {
-  description = "Role EKS"
+  description = "La región donde se creará el clúster"
+  default     = "us-east-1"
 }
 
 variable "cluster_name" {
-  description = "nombre del cluster EKS"
+  description = "El nombre del clúster EKS"
+  default     = "alfresco-cluster"
+}
+
+variable "role" {
+  description = "ARN del rol de IAM para EKS"
+  type        = string
+}
+
+variable "vpc_cidr_block" {
+  description = "CIDR block para la VPC"
+  default     = "192.168.0.0/16"
 }
