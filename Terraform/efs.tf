@@ -9,34 +9,6 @@ resource "aws_efs_file_system" "alfresco_efs" {
   }
 }
 
-# Grupo de seguridad para EFS con reglas NFS
-resource "aws_security_group" "sg_efs_alfresco" {
-  vpc_id = aws_vpc.alfresco_vpc.id
-  description = "Security group for Alfresco EFS allowing NFS traffic from cluster nodes"
-
-  # Permitir tráfico NFS (puerto 2049) desde las subnets del clúster
-  ingress {
-    from_port       = 2049
-    to_port         = 2049
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alfresco_cluster_sg.id] 
-    description     = "Allow NFS traffic from EKS nodes"
-  }
-
-  # Salida sin restricciones
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
-  }
-
-  tags = {
-    Name = "Alfresco EFS Security Group"
-  }
-}
-
 # Mount Target en Subnet Privada 1
 resource "aws_efs_mount_target" "alfresco_efs_target_private_1" {
   file_system_id  = aws_efs_file_system.alfresco_efs.id
