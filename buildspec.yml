@@ -54,6 +54,7 @@ phases:
       - cd Terraform && terraform init
       - cd Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
+      - cd Terraform && terraform destroy -auto-approve
       # Capturar outputs de Terraform
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID
