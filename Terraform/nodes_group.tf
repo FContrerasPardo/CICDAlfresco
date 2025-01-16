@@ -16,10 +16,6 @@ resource "aws_eks_node_group" "alfresco_node_group" {
   capacity_type  = "SPOT"
   instance_types = ["m5.xlarge"]
 
-  remote_access {
-    ec2_ssh_key = var.ssh_key_name
-  }
-
   depends_on = [
     aws_eks_cluster.alfresco_cluster,
     aws_security_group.alfresco_cluster_sg
