@@ -1,4 +1,3 @@
-
-data aws_iam_users "admin" {
-    user_name = "cli-user"
+data "aws_iam_user" "admin" {
+  user_name = var.iam_admin_user_name
 }

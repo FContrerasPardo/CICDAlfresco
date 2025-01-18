@@ -48,3 +48,8 @@ variable "efs_throughput_mode" {
   default     = "bursting"
 }
 
+variable "iam_admin_user_name" {
+  description = "Nombre del usuario admin del cluster IAM"
+  type        = string
+  default     = "cli-user" # Cambia este valor si lo deseas
+}

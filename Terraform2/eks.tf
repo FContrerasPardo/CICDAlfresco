@@ -1,6 +1,6 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.31"
+  version = "~> 19.0"
 
   # Información del clúster
   cluster_name    = var.cluster_name
@@ -13,6 +13,24 @@ module "eks" {
   # Configuración del endpoint del clúster
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
+
+cluster_addons = {
+  coredns = {
+    resolve_conflict = "OVERWRITE"
+  }
+  vpc-cni = {
+    resolve_conflict = "OVERWRITE"
+  }
+  kube-proxy = {
+    resolve_conflict = "OVERWRITE"
+  }
+  csi = {
+    resolve_conflict = "OVERWRITE"
+  }
+}
+
+
+  #autenticación en el cluster
   manage_aws_auth_configmap = true
   aws_auth_users = [
     {
@@ -24,6 +42,7 @@ module "eks" {
     }
   ]
   aws_auth_roles = var.cluster_service_role_arn
+
   # Configuración de grupos de nodos gestionados
   eks_managed_node_groups = {
     default = {
@@ -64,13 +83,16 @@ module "eks" {
   }
 }
 
+# Extrae información del clúster EKS
 data "aws_eks_cluster" "cluster" {
-    name = module.eks.cluster_name
+  name = module.eks.cluster_name
 }
 data "aws_eks_cluster_auth" "cluster" {
     name = module.eks.cluster_name
 }
+# Configura el proveedor Kubernetes
 provider "kubernetes" {
-    host = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.endpoint.certi)
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
 }
