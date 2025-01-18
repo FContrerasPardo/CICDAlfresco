@@ -22,3 +22,56 @@ resource "aws_efs_mount_target" "alfresco_efs_target_private_2" {
   subnet_id       = aws_subnet.alfresco_private_subnet_2.id
   security_groups = [aws_security_group.sg_efs_alfresco.id]
 }
+
+# Configuración de Storage Class para EFS en EKS
+resource "kubernetes_storage_class" "efs_storage_class" {
+  metadata {
+    name = "efs-sc"
+  }
+
+  storage_provisioner = "efs.csi.aws.com" 
+  parameters = {
+    fileSystemId  = aws_efs_file_system.alfresco_efs.id
+    directoryPerms = "777"
+  }
+
+  reclaim_policy       = "Retain"  # Mantener los datos después de eliminar el PVC
+  volume_binding_mode  = "Immediate"
+}
+
+# Persistent Volume para EFS en EKS
+resource "kubernetes_persistent_volume" "efs_pv" {
+  metadata {
+    name = "efs-pv"
+  }
+
+  spec {
+    capacity = {
+      storage = "5Gi"
+    }
+    access_modes = ["ReadWriteMany"]
+    persistent_volume_source {
+      csi {
+        driver    = "efs.csi.aws.com"
+        volume_handle = aws_efs_file_system.alfresco_efs.id
+      }
+    }
+  }
+}
+
+# Persistent Volume Claim para EFS en EKS
+resource "kubernetes_persistent_volume_claim" "efs_pvc" {
+  metadata {
+    name = "efs-pvc"
+  }
+
+  spec {
+    access_modes = ["ReadWriteMany"]
+    resources {
+      requests = {
+        storage = "5Gi"
+      }
+    }
+    storage_class_name = kubernetes_storage_class.efs_storage_class.metadata[0].name
+  }
+}
