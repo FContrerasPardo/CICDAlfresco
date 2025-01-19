@@ -56,19 +56,14 @@ phases:
       - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       # Capturar outputs de Terraform
       - cd Terraform && terraform output
-      - export CODEBUILD_ENV_FILE=../codebuild.env
       - EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
       - export EKS_CLUSTER_ENDPOINT
-      - echo "EKS_CLUSTER_ENDPOINT=$EKS_CLUSTER_ENDPOINT" >> $CODEBUILD_ENV_FILE
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID
-      - echo "VPC_ID=$VPC_ID" >> $CODEBUILD_ENV_FILE
       - EFS_ARN=$(terraform output -raw efs_arn)
       - export EFS_ARN
-      - echo "EFS_ARN=$EFS_ARN" >> $CODEBUILD_ENV_FILE
       - EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
       - export EFS_DNS_NAME
-      - echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $CODEBUILD_ENV_FILE
   build:
     commands:
       # Validar y Configurar Cluster 
