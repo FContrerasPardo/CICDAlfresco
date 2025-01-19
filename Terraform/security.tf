@@ -28,6 +28,26 @@ resource "aws_security_group_rule" "allow_efs_nfs_from_cluster" {
   source_security_group_id = aws_security_group.alfresco_cluster_sg.id
   description              = "Allow NFS from Cluster Nodes to EFS"
 }
+# Regla: Permitir tráfico NFS (2049) del clúster hacia el EFS por el bloque de CDIR
+resource "aws_security_group_rule" "efs_ingress" {
+  type                    = "ingress"
+  from_port               = 2049
+  to_port                 = 2049
+  protocol                = "tcp"
+  security_group_id       = aws_security_group.sg_efs_alfresco.id
+  cidr_blocks             = [data.aws_vpc.alfresco_vpc.cidr_block]
+}
+resource "aws_security_group_rule" "efs_outbound" {
+  type              = "egress"
+  from_port         = 2049
+  to_port           = 2049
+  protocol          = "tcp"
+  cidr_blocks       = [data.aws_vpc.alfresco_vpc.cidr_block]
+  security_group_id = aws_security_group.sg_efs_alfresco.id
+
+  description = "Allow NFS from EFS to Cluster Nodes by CDIR"
+}
+
 
 # Regla: Permitir tráfico interno entre nodos
 resource "aws_security_group_rule" "allow_internal_cluster_traffic" {

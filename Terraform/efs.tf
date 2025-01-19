@@ -29,7 +29,7 @@ resource "kubernetes_storage_class" "efs_storage_class" {
     name = "efs-sc"
   }
 
-  storage_provisioner = "efs.csi.aws.com" 
+  storage_provisioner = "efs.csi.aws.com"  # Controlador CSI para AWS EFS
   parameters = {
     fileSystemId  = aws_efs_file_system.alfresco_efs.id
     directoryPerms = "777"
@@ -47,15 +47,17 @@ resource "kubernetes_persistent_volume" "efs_pv" {
 
   spec {
     capacity = {
-      storage = "5Gi"
+      storage = "20Gi"
     }
     access_modes = ["ReadWriteMany"]
     persistent_volume_source {
-      csi {
-        driver    = "efs.csi.aws.com"
-        volume_handle = aws_efs_file_system.alfresco_efs.id
+      nfs {
+        server = aws_efs_file_system.alfresco_efs.dns_name
+        path   = "/"
       }
     }
+    storage_class_name = kubernetes_storage_class.efs_storage_class.metadata[0].name
+    persistent_volume_reclaim_policy = "Retain"
   }
 }
 
@@ -69,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "efs_pvc" {
     access_modes = ["ReadWriteMany"]
     resources {
       requests = {
-        storage = "5Gi"
+        storage = "20Gi"
       }
     }
     storage_class_name = kubernetes_storage_class.efs_storage_class.metadata[0].name
