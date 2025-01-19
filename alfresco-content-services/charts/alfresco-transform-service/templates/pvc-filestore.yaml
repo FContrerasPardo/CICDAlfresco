@@ -1,3 +1,0 @@
-{{- if and (not .Values.filestore.persistence.existingClaim) .Values.filestore.enabled .Values.filestore.persistence.enabled }}
-{{ include "component_pvc" .Values.filestore }}
-{{- end }}
