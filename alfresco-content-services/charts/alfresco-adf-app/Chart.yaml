@@ -1,0 +1,9 @@
+apiVersion: v2
+dependencies:
+- name: alfresco-common
+  repository: https://alfresco.github.io/alfresco-helm-charts/
+  version: 3.1.4
+description: A generic Alfresco Development Framework Helm chart for Kubernetes
+name: alfresco-adf-app
+type: application
+version: 0.2.0
