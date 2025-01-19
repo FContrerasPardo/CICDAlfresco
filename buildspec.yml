@@ -54,7 +54,6 @@ phases:
       - cd Terraform && terraform init
       - cd Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
-      - cd Terraform && terraform destroy -auto-approve
       # Capturar outputs de Terraform
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID
@@ -62,6 +61,25 @@ phases:
       - EFS_ARN=$(terraform output -raw efs_arn)
       - export EFS_ARN
       - echo "EFS_ARN=$EFS_ARN" >> $CODEBUILD_ENV_FILE
+      - EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
+      - export EFS_DNS_NAME
+      - echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $CODEBUILD_ENV_FILE
       # Validar y Configurar Cluster 
       - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
+      - kubectl create namespace ${NAMESPACE}
       - kubectl get pods -n ${NAMESPACE}
+      # Configuración del DNS Externo
+      - echo "Configurando DNS Externo con Kubernetes"
+      - kubectl apply -f files/external-dns.yaml
+      - kubectl get configmap external-dns-config -n kube-system
+      - kubectl get pods -n kube-system -l app=external-dns
+      - echo "DNS externo aplicado correctamente."
+      # Configuración de Helm para NFS Client Provisioner para conectar el EFS
+      - echo "Configurando NFS Client Provisioner con Helm..."
+      - helm repo add stable https://charts.helm.sh/stable
+      - helm install alfresco-nfs-provisioner stable/nfs-client-provisioner --set nfs.server="$EFS_DNS_NAME" --set nfs.path="/" --set storageClass.name="nfs-client" --set storageClass.archiveOnDelete=false -n kube-system
+      # ingress_setup 
+      - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      - helm repo update
+      - kubectl apply -f files/ingress-rbac.yaml -n ${NAMESPACE}
+      - helm install acs-ingress ingress-nginx/ingress-nginx --set controller.scope.enabled=true --set controller.scope.namespace=${NAMESPACE} --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN_NAME}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --atomic --namespace ${NAMESPACE}
