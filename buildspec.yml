@@ -10,7 +10,7 @@ phases:
     commands:
       - echo Preparando entorno
       - sudo yum update -y
-       # Instalación de kubectl
+      # Instalación de kubectl
       - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       - chmod +x kubectl
       - sudo mv kubectl /usr/local/bin/
@@ -19,7 +19,7 @@ phases:
       - curl --silent --location "https://github.com/weaveworks/eksctl/releases/download/v0.140.0/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
       - sudo mv /tmp/eksctl /usr/local/bin
       - eksctl version
-       # Instalación de Helm
+      # Instalación de Helm
       - curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
       - chmod 700 get_helm.sh
       - ./get_helm.sh
@@ -55,6 +55,11 @@ phases:
       - cd Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       # Capturar outputs de Terraform
+      - cd Terraform && terraform output
+      - export CODEBUILD_ENV_FILE=../codebuild.env
+      - EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
+      - export EKS_CLUSTER_ENDPOINT
+      - echo "EKS_CLUSTER_ENDPOINT=$EKS_CLUSTER_ENDPOINT" >> $CODEBUILD_ENV_FILE
       - VPC_ID=$(terraform output -raw vpc_id)
       - export VPC_ID
       - echo "VPC_ID=$VPC_ID" >> $CODEBUILD_ENV_FILE
@@ -64,6 +69,8 @@ phases:
       - EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
       - export EFS_DNS_NAME
       - echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $CODEBUILD_ENV_FILE
+  build:
+    commands:
       # Validar y Configurar Cluster 
       - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
       - kubectl create namespace ${NAMESPACE}
@@ -83,6 +90,16 @@ phases:
       - helm repo update
       - kubectl apply -f files/ingress-rbac.yaml -n ${NAMESPACE}
       - helm install acs-ingress ingress-nginx/ingress-nginx --set controller.scope.enabled=true --set controller.scope.namespace=${NAMESPACE} --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN_NAME}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --atomic --namespace ${NAMESPACE}
-
+      - kubectl get pods -n ${NAMESPACE}
+      - kubectl get pods -n kube-system
       # Instalación de Alfresco Content Services 
       - helm install acs ./alfresco-content-services --set externalPort="443" --set externalProtocol="https" --set externalHost="acs.tfmfc.com" --set persistence.enabled=true --set persistence.storageClass.enabled=true --set persistence.storageClass.name="nfs-client" --set alfresco-repository.persistence.existingClaim="alf-content-pvc" --set alfresco-repository.persistence.enabled=true --set global.alfrescoRegistryPullSecrets=quay-registry-secret --set alfresco-sync-service.enabled=false --set postgresql-sync.enabled=false --set alfresco-transform-service.transformrouter.replicaCount="1" --set alfresco-transform-service.pdfrenderer.replicaCount="1" --set alfresco-transform-service.imagemagick.replicaCount="1" --set alfresco-transform-service.libreoffice.replicaCount="1" --set alfresco-transform-service.tika.replicaCount="1" --set alfresco-transform-service.transformmisc.replicaCount="1" --set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" --set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" --set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" --set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" --set alfresco-transform-service.tika.resources.limits.memory="2Gi" --set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" --set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" --set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" --set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" --set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" --set alfresco-transform-service.tika.resources.limits.cpu="250m" --set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" --set alfresco-transform-service.filestore.resources.limits.cpu="250m" --set postgresql.primary.resources.requests.cpu="250m" --set postgresql.primary.resources.limits.cpu="500m" --set postgresql.primary.resources.limits.memory="6Gi" --set alfresco-share.resources.limits.cpu="250m" --set alfresco-search-enterprise.resources.requests.cpu="250m" --set alfresco-search-enterprise.resources.limits.cpu="250m" --set alfresco-repository.resources.requests.cpu="500m" --set alfresco-repository.resources.limits.cpu="500m" --set alfresco-repository.readinessProbe.periodSeconds="200" --set alfresco-repository.livenessProbe.periodSeconds="200" --set alfresco-repository.startupProbe.periodSeconds="200" --set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" --set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" --set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" --set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" --set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" --set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" --set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" --set alfresco-search-enterprise.reindexing.enabled=false --atomic --namespace=alfresco
+      - kubectl get pods -n ${NAMESPACE}
+      - echo "Despliegue finalizado"
+      - echo "DOMAIN_NAME=$DOMAIN_NAME"
+  post_build:
+    commands:
+      - helm plugin install https://github.com/quintush/helm-unittest
+      - helm unittest ./alfresco-content-services
+      - echo "Pruebas unitarias completadas"
+      - echo "Despliegue finalizado"
