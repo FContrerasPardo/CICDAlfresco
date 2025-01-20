@@ -49,13 +49,20 @@ phases:
       # Crear el cluster
       # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
       - echo "Iniciando despliegue de infraestructura con Terraform"
-      - ls -la
+      - pwd
       - cd Terraform && ls -la
-      - codebuild-breakpoint
-      - cd Terraform && terraform init
+      - cd $CODEBUILD_SRC_DIR/Terraform
+      - terraform init
       - cd Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       - cd Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
-      - codebuild-breakpoint
-      - cd Terraform && terraform output
-      - EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
-      - export EKS_CLUSTER_ENDPOINT
+      - cd Terraform && terraform destroy -auto-approve
+      # Capturar outputs de Terraform
+      - VPC_ID=$(terraform output -raw vpc_id)
+      - export VPC_ID
+      - echo "VPC_ID=$VPC_ID" >> $CODEBUILD_ENV_FILE
+      - EFS_ARN=$(terraform output -raw efs_arn)
+      - export EFS_ARN
+      - echo "EFS_ARN=$EFS_ARN" >> $CODEBUILD_ENV_FILE
+      # Validar y Configurar Cluster 
+      - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
+      - kubectl get pods -n ${NAMESPACE}
