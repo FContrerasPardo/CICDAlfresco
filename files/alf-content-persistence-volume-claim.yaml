@@ -1,0 +1,13 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: alf-content-pvc
+  namespace: alfresco2
+spec:
+  storageClassName: alfresco-efs-sc
+  volumeName: alf-content-pv
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi

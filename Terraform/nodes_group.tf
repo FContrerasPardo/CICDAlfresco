@@ -12,7 +12,10 @@ resource "aws_eks_node_group" "alfresco_node_group" {
     max_size     = 4
     min_size     = 3
   }
-
+  remote_access {
+    ec2_ssh_key = var.ssh_key_name
+    source_security_group_ids = [aws_security_group.alfresco_cluster_sg.id]
+  }
   capacity_type  = "SPOT"
   instance_types = ["m5.xlarge"]
 
