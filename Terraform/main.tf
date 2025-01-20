@@ -57,8 +57,8 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
-# Agrego addons necesarios
-resource "aws_eks_addon" "coredns" {
+## Agrego addons necesarios
+#resource "aws_eks_addon" "coredns" {
   cluster_name      = aws_eks_cluster.alfresco_cluster.name
   addon_name        = "coredns"
   resolve_conflicts_on_create = "OVERWRITE"
@@ -66,9 +66,9 @@ resource "aws_eks_addon" "coredns" {
   tags = {
     Name = "EKS-CoreDNS"
   }
-}
-
-resource "aws_eks_addon" "kube_proxy" {
+#}
+#
+#resource "aws_eks_addon" "kube_proxy" {
   cluster_name      = aws_eks_cluster.alfresco_cluster.name
   addon_name        = "kube-proxy"
   resolve_conflicts_on_create = "OVERWRITE"
@@ -76,9 +76,9 @@ resource "aws_eks_addon" "kube_proxy" {
   tags = {
     Name = "EKS-KubeProxy"
   }
-}
-
-resource "aws_eks_addon" "vpc_cni" {
+#}
+#
+#resource "aws_eks_addon" "vpc_cni" {
   cluster_name      = aws_eks_cluster.alfresco_cluster.name
   addon_name        = "vpc-cni"
   resolve_conflicts_on_create = "OVERWRITE"
@@ -86,8 +86,8 @@ resource "aws_eks_addon" "vpc_cni" {
   tags = {
     Name = "EKS-VPCCNI"
   }
-}
-resource "aws_eks_addon" "efs_csi" {
+#}
+#resource "aws_eks_addon" "efs_csi" {
   cluster_name = aws_eks_cluster.alfresco_cluster.name
   addon_name   = "aws-efs-csi-driver"
   resolve_conflicts_on_create = "OVERWRITE"
@@ -95,9 +95,9 @@ resource "aws_eks_addon" "efs_csi" {
   tags = {
     Name = "EFS-CSI-Addon"
   }
-}
-
-resource "kubernetes_config_map" "aws_auth" {
+#}
+#
+#resource "kubernetes_config_map" "aws_auth" {
   metadata {
     name      = "aws-auth"
     namespace = "kube-system"
@@ -122,10 +122,10 @@ resource "kubernetes_config_map" "aws_auth" {
   }
 
   depends_on = [aws_eks_cluster.alfresco_cluster]
-}
-
-resource "kubernetes_namespace" "alfresco_namespace" {
-  metadata {
-    name = var.namespace
-  }
-}
+#}
+#
+#resource "kubernetes_namespace" "alfresco_namespace" {
+#  metadata {
+#    name = var.namespace
+#  }
+#}
