@@ -54,14 +54,14 @@ phases:
       - cd $CODEBUILD_SRC_DIR/Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
       # Capturar outputs de Terraform
       - codebuild-breakpoint
-      - cd Terraform && terraform output
-      - EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
+      - cd $CODEBUILD_SRC_DIR/Terraform && terraform output
+      - EKS_CLUSTER_ENDPOINT=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw eks_cluster_endpoint)
       - export EKS_CLUSTER_ENDPOINT
-      - VPC_ID=$(terraform output -raw vpc_id)
+      - VPC_ID=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw vpc_id)
       - export VPC_ID
-      - EFS_ARN=$(terraform output -raw efs_arn)
+      - EFS_ARN=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw efs_arn)
       - export EFS_ARN
-      - EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
+      - EFS_DNS_NAME=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw efs_dns_name)
       - export EFS_DNS_NAME
   build:
     commands:
