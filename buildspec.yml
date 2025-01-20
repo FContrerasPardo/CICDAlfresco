@@ -59,8 +59,6 @@ phases:
       - export EKS_CLUSTER_ENDPOINT
       - VPC_ID=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw vpc_id)
       - export VPC_ID
-      - EFS_ARN=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw efs_arn)
-      - export EFS_ARN
       - EFS_DNS_NAME=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw efs_dns_name)
       - export EFS_DNS_NAME
   build:

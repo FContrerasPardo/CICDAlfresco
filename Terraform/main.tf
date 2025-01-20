@@ -96,6 +96,15 @@ resource "aws_eks_addon" "efs_csi" {
     Name = "EFS-CSI-Addon"
   }
 }
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name = aws_eks_cluster.alfresco_cluster.name
+  addon_name   = "ebs-csi-driver"
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  tags = {
+    Name = "EBS-CSI-Addon"
+  }
+}
 
 resource "kubernetes_config_map" "aws_auth" {
   metadata {
