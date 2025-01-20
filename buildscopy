@@ -455,7 +455,7 @@ Esta es la ultima ejecución que probe, falta acs
       # ingress_setup 
       - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
       - helm repo update
-      - kubectl apply -f $CODEBUILD_SRC_DIR/files/ingress-rbac.yaml -n ${NAMESPACE}
+      - envsubst < $CODEBUILD_SRC_DIR/files/ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
       - helm install acs-ingress ingress-nginx/ingress-nginx --set controller.scope.enabled=true --set controller.scope.namespace=${NAMESPACE} --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN_NAME}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --atomic --namespace ${NAMESPACE}
       - kubectl get pods -n ${NAMESPACE}
       - kubectl get pods -n kube-system
@@ -464,4 +464,7 @@ Esta es la ultima ejecución que probe, falta acs
       - kubectl get pods -n ${NAMESPACE}
       - echo "Despliegue finalizado"
       - echo "DOMAIN_NAME=$DOMAIN_NAME"
+
+
+      
         
