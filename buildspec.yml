@@ -67,3 +67,9 @@ phases:
       - aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION}
       - kubectl create namespace ${NAMESPACE}
       - kubectl get pods -n ${NAMESPACE}
+      # Configuración del DNS Externo
+      - echo "Configurando DNS Externo con Kubernetes"
+      - kubectl apply -f $CODEBUILD_SRC_DIR/files/external-dns.yaml
+      - kubectl get configmap external-dns-config -n kube-system
+      - kubectl get pods -n kube-system -l app=external-dns
+      - echo "DNS externo aplicado correctamente."
