@@ -50,8 +50,8 @@ phases:
       # Necesito en el terraform asegurar que las reglas de entrada y salida del cluster, incluya una que permita el trafico hacia el grupo de seguridad de quien ejecute el comando, por ejemplo en el caso de cloud9 trafico hacia y desde cluod 9 o si no no se pueden listar los nodos
       - echo "Iniciando despliegue de infraestructura con Terraform"
       - cd $CODEBUILD_SRC_DIR/Terraform && terraform init
-      - cd $CODEBUILD_SRC_DIR/Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
-      - cd $CODEBUILD_SRC_DIR/Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN"
+      - cd $CODEBUILD_SRC_DIR/Terraform && terraform plan -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN" -var="namespace"=$NAMESPACE
+      - cd $CODEBUILD_SRC_DIR/Terraform && terraform apply -auto-approve -var="aws_region=$AWS_DEFAULT_REGION" -var="cluster_name=$EKS_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$EKS_NODE_ROLE_ARN" -var="namespace"=$NAMESPACE
       # Capturar outputs de Terraform
       - codebuild-breakpoint
       - cd $CODEBUILD_SRC_DIR/Terraform && terraform output

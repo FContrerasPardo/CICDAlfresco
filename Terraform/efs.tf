@@ -43,7 +43,6 @@ resource "kubernetes_storage_class" "efs_storage_class" {
 resource "kubernetes_persistent_volume" "efs_pv" {
   metadata {
     name = "efs-pv"
-    namespace = var.namespace
   }
 
   spec {
@@ -66,6 +65,7 @@ resource "kubernetes_persistent_volume" "efs_pv" {
 resource "kubernetes_persistent_volume_claim" "efs_pvc" {
   metadata {
     name = "efs-pvc"
+    namespace = var.namespace
   }
 
   spec {

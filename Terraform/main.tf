@@ -123,3 +123,9 @@ resource "kubernetes_config_map" "aws_auth" {
 
   depends_on = [aws_eks_cluster.alfresco_cluster]
 }
+
+resource "kubernetes_namespace" "alfresco_namespace" {
+  metadata {
+    name = var.namespace
+  }
+}
