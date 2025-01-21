@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: alf-content-pv
-  namespace: alfresco2
+  name: alf-content-pv-${NAMESPACE}
+  namespace: ${NAMESPACE}
 spec:
   accessModes:
   - ReadWriteMany
@@ -11,5 +11,5 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: alfresco-efs-sc
   nfs:
-    server: fs-098a5b313abf42c10.efs.us-east-1.amazonaws.com
+    server: ${EFSDNS}
     path: "/"

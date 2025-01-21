@@ -24,8 +24,9 @@ variable "node_role_arn" {
 }
 
 variable "ssh_key_name" {
-  description = "Nombre de la clave SSH para acceder a los nodos"
-  default     = "my-eks-key"
+  description = "Nombre del par de claves SSH para los nodos"
+  type        = string
+  default     = "ekstrm" # Nombre de la clave SSH creada
 }
 
 variable "vpc_cidr_block" {
@@ -58,10 +59,4 @@ variable "namespace" {
   description = "The namespace to deploy resources into"
   type        = string
   default     = "default"  # Cambia esto al valor por defecto que desees
-}
-
-variable "ssh_key_name" {
-  description = "Nombre del par de claves SSH para los nodos"
-  type        = string
-  default     = "ekstrm" # Nombre de la clave SSH creada
 }

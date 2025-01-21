@@ -1,8 +1,8 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: alfresco-efs-sc
-  namespace: alfresco2
+  name: alfresco-efs-sc-${NAMESPACE}
+  namespace: ${NAMESPACE}
 provisioner: efs.csi.aws.com
 allowVolumeExpansion: true
 reclaimPolicy: Retain
