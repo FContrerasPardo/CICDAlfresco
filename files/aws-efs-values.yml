@@ -1,0 +1,12 @@
+storageClasses:
+  - mountOptions:
+      - tls
+    name: nfs-client
+    parameters:
+      directoryPerms: "700"
+      uid: "33000"         # Cambiado a cadena de texto
+      gid: "1000"          # Cambiado a cadena de texto
+      fileSystemId: "${EFSDNS}"
+      provisioningMode: "efs-ap"
+    reclaimPolicy: Retain
+    volumeBindingMode: Immediate

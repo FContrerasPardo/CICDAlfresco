@@ -59,11 +59,11 @@ phases:
       - export EKS_CLUSTER_ENDPOINT
       - VPC_ID=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw vpc_id)
       - export VPC_ID
-      - EFS_DNS_NAME=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw efs_dns_name)
-      - export EFS_DNS_NAME
-#      # Configurar kubectl y namespace
-#      - aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${REGION}
-#      - kubectl get nodes  
+      - EFSDNS=$(cd $CODEBUILD_SRC_DIR/Terraform && terraform output -raw efs_dns_name)
+      - export EFSDNS
+      # Configurar kubectl y namespace
+      - aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${REGION}
+      - kubectl get nodes
 #      - if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
 #      # Habilitar el proveedor OIDC necesario para instalar complementos adicionales de EKS más adelante
 #      - eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --approve

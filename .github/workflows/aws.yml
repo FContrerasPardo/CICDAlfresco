@@ -1,94 +1,191 @@
-# This workflow will build and push a new container image to Amazon ECR,
-# and then will deploy a new task definition to Amazon ECS, when there is a push to the "main" branch.
-#
-# To use this workflow, you will need to complete the following set-up steps:
-#
-# 1. Create an ECR repository to store your images.
-#    For example: `aws ecr create-repository --repository-name my-ecr-repo --region us-east-2`.
-#    Replace the value of the `ECR_REPOSITORY` environment variable in the workflow below with your repository's name.
-#    Replace the value of the `AWS_REGION` environment variable in the workflow below with your repository's region.
-#
-# 2. Create an ECS task definition, an ECS cluster, and an ECS service.
-#    For example, follow the Getting Started guide on the ECS console:
-#      https://us-east-2.console.aws.amazon.com/ecs/home?region=us-east-2#/firstRun
-#    Replace the value of the `ECS_SERVICE` environment variable in the workflow below with the name you set for the Amazon ECS service.
-#    Replace the value of the `ECS_CLUSTER` environment variable in the workflow below with the name you set for the cluster.
-#
-# 3. Store your ECS task definition as a JSON file in your repository.
-#    The format should follow the output of `aws ecs register-task-definition --generate-cli-skeleton`.
-#    Replace the value of the `ECS_TASK_DEFINITION` environment variable in the workflow below with the path to the JSON file.
-#    Replace the value of the `CONTAINER_NAME` environment variable in the workflow below with the name of the container
-#    in the `containerDefinitions` section of the task definition.
-#
-# 4. Store an IAM user access key in GitHub Actions secrets named `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-#    See the documentation for each action used below for the recommended IAM policies for this IAM user,
-#    and best practices on handling the access key credentials.
-
-name: Deploy to Amazon ECS
+name: Deploy Alfresco to Amazon EKS
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+      - stage
 
 env:
-  AWS_REGION: MY_AWS_REGION                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: MY_ECR_REPOSITORY           # set this to your Amazon ECR repository name
-  ECS_SERVICE: MY_ECS_SERVICE                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: MY_ECS_CLUSTER                 # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: MY_ECS_TASK_DEFINITION # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: MY_CONTAINER_NAME           # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
+  # Credentials for deployment to AWS
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  # Credentials of repositories
+  NEXUS_USER: ${{ secrets.NEXUS_USER }}
+  NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+  QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+  # Docker image repository
+  ECR_NAME: ${{ vars.ECR_NAME }}
+  TAG: ${{ vars.TAG }}
+  TARGETARCH: ${{ vars.TARGETARCH }}
+  # Cluster Configuration
+  NAMESPACE: ${{ vars.NAMESPACE }}
+  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+  NODE_ROLE_ARN: ${{ secrets.NODE_ROLE_ARN }}
+  EKS_SERVICE_ROLE_ARN: ${{ secrets.EKS_SERVICE_ROLE_ARN }}
+  # DNS Configuration
+  DOMAIN: ${{ vars.DOMAIN }}
+  CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
-    name: Deploy
+  CICD_Alfresco:
+    name: Install dependencies
     runs-on: ubuntu-latest
-    environment: production
+    defaults:
+      run:
+        shell: bash
+#        working-directory: ./CICDAlfresco
 
     steps:
-    - name: Checkout
+    - name: Checkout source code
       uses: actions/checkout@v4
 
+    - name: Set up kubectl
+      run: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        kubectl version --client
+
+    - name: Set up eksctl
+      run: |
+        curl --silent --location "
+
+    - name: Set up Helm
+      run: |
+        curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        helm version | cut -d + -f 1
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
-      with:
+      with: 
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
+  # terraform:
+    - name: Setup Terraform with specified version on the runner
+      uses: hashicorp/setup-terraform@v2
+      # with:
+        # terraform_version: 1.6.3
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+    #- name: Set up Terraform
+    #  run: |
+    #    curl -o terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+    #    unzip terraform.zip
+    #    sudo mv terraform /usr/local/bin/
+    #    terraform --version
+    - name: Terraform init
+      id: init
+      run: terraform init 
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
+    - name: cd Terraform && Terraform format
+      id: fmt
+      run: terraform fmt -check
+
+    - name: Terraform validate
+      id: validate
+      run: cd Terraform && terraform validate
+
+    - name: Terraform plan
+      id: plan
+      run: cd Terraform && terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
+      continue-on-error: true
+
+    - name: Terraform plan status
+      if: steps.plan.outcome == 'failure'
+      run: exit 1
+
+    - name: Terraform Apply
+      id: apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: cd Terraform && terraform apply -auto-approve -input=false -parallelism=1 planfile -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
+
+    - name: Get Terraform outputs
+      id: getoutput
+      if: steps.apply.outcome == 'success'
+      run:
+        cd Terraform
+        terraform output
+        EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
+        export EKS_CLUSTER_ENDPOINT
+        VPC_ID=$(terraform output -raw vpc_id)
+        export VPC_ID
+        EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
+        export EFS_DNS_NAME
+
+    - name: Get Kube config file
+      id: getconfig
+      if: steps.apply.outcome == 'success'
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+  
+    - name: Create namespace and associate IAM OIDC provider
+      if: steps.getconfig.outcome == 'success'
       run: |
-        # Build a docker container and
-        # push it to ECR so that it can
-        # be deployed to ECS.
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
+        eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --approve
+        
+    - name: Setup EBS CSI Driver and EFS CSI Driver
+      run: |
+        eksctl create iamserviceaccount --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME --namespace kube-system --cluster $EKS_CLUSTER_NAME --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve --role-only --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+        if eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION; then eksctl delete addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION; fi
+        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
+        helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
+        helm repo update
+        envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
+    - name: Mount EFS PV, PVC and StorageClass
+      run: |
+        envsubst < ~/environment/CICDAlfresco/files/alf-efs-storage-class.yaml | kubectl create -f -
+        envsubst < ~/environment/CICDAlfresco/files/alf-content-persistence-volume.yaml | kubectl apply -f -
+        envsubst < ~/environment/CICDAlfresco/files/alf-content-persistence-volume-claim.yaml | kubectl create -f -
+    - name: Configure External DNS
+      run: |
+        kubectl apply -f $CODEBUILD_SRC_DIR/files/external-dns.yaml
+        kubectl get configmap external-dns-config -n kube-system
+        kubectl get pods -n kube-system -l app=external-dns
+        echo "DNS externo aplicado correctamente."
+    - name: Configure Ingress Controller
+      run: |
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+        envsubst < $CODEBUILD_SRC_DIR/files/ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
+        helm install acs-ingress-$EKS_CLUSTER_NAME ingress-nginx/ingress-nginx --set controller.scope.enabled=true --set controller.scope.namespace=$NAMESPACE --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --set controller.ingressClassResource.name="$NAMESPACE-nginx" --set controller.ingressClassByName=true --atomic --namespace $NAMESPACE
+        kubectl get pods -n ${NAMESPACE}
+        kubectl get pods -n kube-system
+    - name: Install Alfresco Content Services
+      run: |
+        kubectl create secret docker-registry quay-registry-secret --docker-server=quay.io --docker-username=$QUAY_USERNAME --docker-password=$QUAY_PASSWORD -n ${NAMESPACE}
+        helm install acs $CODEBUILD_SRC_DIR/CICDAlfresco/alfresco-content-services --set externalPort="443" --set externalProtocol="https" --set externalHost="acs.${DOMAIN}" --set persistence.enabled=true --set persistence.storageClass.enabled=true --set persistence.storageClass.name="nfs-client" --set alfresco-repository.persistence.existingClaim="alf-content-pvc-${NAMESPACE}" --set alfresco-repository.persistence.enabled=true --set global.alfrescoRegistryPullSecrets=quay-registry-secret --set alfresco-sync-service.enabled=false --set postgresql-sync.enabled=false --set alfresco-transform-service.transformrouter.replicaCount="1" --set alfresco-transform-service.pdfrenderer.replicaCount="1" --set alfresco-transform-service.imagemagick.replicaCount="1" --set alfresco-transform-service.libreoffice.replicaCount="1" --set alfresco-transform-service.tika.replicaCount="1" --set alfresco-transform-service.transformmisc.replicaCount="1" --set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" --set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" --set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" --set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" --set alfresco-transform-service.tika.resources.limits.memory="2Gi" --set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" --set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" --set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" --set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" --set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" --set alfresco-transform-service.tika.resources.limits.cpu="250m" --set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" --set alfresco-transform-service.filestore.resources.limits.cpu="250m" --set postgresql.primary.resources.requests.cpu="250m" --set postgresql.primary.resources.limits.cpu="500m" --set postgresql.primary.resources.limits.memory="6Gi" --set alfresco-share.resources.limits.cpu="250m" --set alfresco-search-enterprise.resources.requests.cpu="250m" --set alfresco-search-enterprise.resources.limits.cpu="250m" --set alfresco-repository.resources.requests.cpu="500m" --set alfresco-repository.resources.limits.cpu="500m" --set alfresco-repository.readinessProbe.periodSeconds="200" --set alfresco-repository.livenessProbe.periodSeconds="200" --set alfresco-repository.startupProbe.periodSeconds="200" --set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" --set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" --set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" --set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" --set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" --set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" --set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" --set alfresco-search-enterprise.reindexing.enabled=false --timeout 20m0s --namespace=$NAMESPACE
+        kubectl get pods -n ${NAMESPACE}
+        echo "DOMAIN=$DOMAIN"
+        echo "NAMESPACE=$NAMESPACE"
+        echo "EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME"
+        echo "Despliegue finalizado"
 
-    - name: Fill in the new image ID in the Amazon ECS task definition
-      id: task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: ${{ env.ECS_TASK_DEFINITION }}
-        container-name: ${{ env.CONTAINER_NAME }}
-        image: ${{ steps.build-image.outputs.image }}
+#  bake:
+#    name: Deploy
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#    - name: Checkout
+#      uses: actions/checkout@v2
+#
+#    - name: Authenticate with Nexus
+#      run: |
+#        chmod +x ./Scripts/setup-netrc.sh
+#        ./Scripts/setup-netrc.sh
+#        echo "Validación del archivo .netrc completada"
 
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-      with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
+
+
+
+
+
+
+
+
