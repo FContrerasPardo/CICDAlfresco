@@ -1403,7 +1403,7 @@ helm uninstall acs --namespace $NAMESPACE
 
 ojo con el nombre del ingress:
 ```bash
- helm uninstall acs-ingress -n $NAMESPACE
+ helm uninstall acs-ingress-$EKS_CLUSTER_NAME -n $NAMESPACE
 ```
 
 

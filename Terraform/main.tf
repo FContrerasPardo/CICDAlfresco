@@ -57,36 +57,36 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
-# Agrego addons necesarios
-resource "aws_eks_addon" "coredns" {
-  cluster_name      = aws_eks_cluster.alfresco_cluster.name
-  addon_name        = "coredns"
-  resolve_conflicts_on_create = "OVERWRITE"
-
-  tags = {
-    Name = "EKS-CoreDNS"
-  }
-}
-
-resource "aws_eks_addon" "kube_proxy" {
-  cluster_name      = aws_eks_cluster.alfresco_cluster.name
-  addon_name        = "kube-proxy"
-  resolve_conflicts_on_create = "OVERWRITE"
-
-  tags = {
-    Name = "EKS-KubeProxy"
-  }
-}
-
-resource "aws_eks_addon" "vpc_cni" {
-  cluster_name      = aws_eks_cluster.alfresco_cluster.name
-  addon_name        = "vpc-cni"
-  resolve_conflicts_on_create = "OVERWRITE"
-
-  tags = {
-    Name = "EKS-VPCCNI"
-  }
-}
+## Agrego addons necesarios
+#resource "aws_eks_addon" "coredns" {
+#  cluster_name      = aws_eks_cluster.alfresco_cluster.name
+#  addon_name        = "coredns"
+#  resolve_conflicts_on_create = "OVERWRITE"
+#
+#  tags = {
+#    Name = "EKS-CoreDNS"
+#  }
+#}
+#
+#resource "aws_eks_addon" "kube_proxy" {
+#  cluster_name      = aws_eks_cluster.alfresco_cluster.name
+#  addon_name        = "kube-proxy"
+#  resolve_conflicts_on_create = "OVERWRITE"
+#
+#  tags = {
+#    Name = "EKS-KubeProxy"
+#  }
+#}
+#
+#resource "aws_eks_addon" "vpc_cni" {
+#  cluster_name      = aws_eks_cluster.alfresco_cluster.name
+#  addon_name        = "vpc-cni"
+#  resolve_conflicts_on_create = "OVERWRITE"
+#
+#  tags = {
+#    Name = "EKS-VPCCNI"
+#  }
+#}
 
 resource "kubernetes_config_map" "aws_auth" {
   metadata {
@@ -113,10 +113,4 @@ resource "kubernetes_config_map" "aws_auth" {
   }
 
   depends_on = [aws_eks_cluster.alfresco_cluster]
-}
-
-resource "kubernetes_namespace" "alfresco_namespace" {
-  metadata {
-    name = var.namespace
-  }
 }

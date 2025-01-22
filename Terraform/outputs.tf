@@ -19,20 +19,20 @@ output "subnets" {
   ]
 }
 
-#output "efs_id" {
-#  value = aws_efs_file_system.alfresco_efs.id
-#}
-#
-#output "efs_dns_name" {
-#  value = aws_efs_file_system.alfresco_efs.dns_name
-#}
-#
-#output "efs_mount_targets" {
-#  value = [
-#    aws_efs_mount_target.alfresco_efs_target_private_1.id,
-#    aws_efs_mount_target.alfresco_efs_target_private_2.id
-#  ]
-#}
+output "efs_id" {
+  value = aws_efs_file_system.alfresco_efs.id
+}
+
+output "efs_dns_name" {
+  value = aws_efs_file_system.alfresco_efs.dns_name
+}
+
+output "efs_mount_targets" {
+  value = [
+    aws_efs_mount_target.alfresco_efs_target_private_1.id,
+    aws_efs_mount_target.alfresco_efs_target_private_2.id
+  ]
+}
 #
 #output "efs_storage_class_name" {
 #  value = kubernetes_storage_class.efs_storage_class.metadata[0].name

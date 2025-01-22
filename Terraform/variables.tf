@@ -54,9 +54,3 @@ variable "iam_admin_user_name" {
   type        = string
   default     = "cli-user" # Cambia este valor si lo deseas
 }
-
-variable "namespace" {
-  description = "The namespace to deploy resources into"
-  type        = string
-  default     = "alfresco"
-}
