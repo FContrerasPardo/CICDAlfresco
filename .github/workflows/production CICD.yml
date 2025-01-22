@@ -124,38 +124,139 @@ jobs:
         if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
         eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --approve
         
-    - name: Setup EBS CSI Driver and EFS CSI Driver
+    - name: Setup EBS CSI Driver Just to have it if not exits
       run: |
         eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
+
+    - name: Delete EBS CSI Driver in case alrready exists to recreate it
+      run: |
         eksctl delete addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION
+
+    - name: Recreate EBS CSI Driver
+      run: |
         eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
+
+    - name: Add EFS CSI Driver Helm repo
+      run: |
         helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
         helm repo update
+
+    - name: Install EFS CSI Driver
+      run: |
         envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
-    - name: Mount EFS PV, PVC and StorageClass
+    
+    - name: Create EFS StorageClass
       run: |
         envsubst < ~/environment/CICDAlfresco/files/alf-efs-storage-class.yaml | kubectl create -f -
+      
+    - name: Create EFS Persistent Volume
+      run: |
         envsubst < ~/environment/CICDAlfresco/files/alf-content-persistence-volume.yaml | kubectl apply -f -
+      
+    - name: Create EFS Persistent Volume Claim
+      run: |
         envsubst < ~/environment/CICDAlfresco/files/alf-content-persistence-volume-claim.yaml | kubectl create -f -
-    - name: Configure External DNS
+    - name: Apply External DNS configuration
       run: |
         kubectl apply -f $CODEBUILD_SRC_DIR/files/external-dns.yaml
+
+    - name: Verify External DNS ConfigMap
+      run: |
         kubectl get configmap external-dns-config -n kube-system
+
+    - name: Verify External DNS Pods
+      run: |
         kubectl get pods -n kube-system -l app=external-dns
+
+    - name: Confirm External DNS application
+      run: |
         echo "DNS externo aplicado correctamente."
-    - name: Configure Ingress Controller
+
+    - name: Add Ingress NGINX Helm repo
       run: |
         helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
         helm repo update
+
+    - name: Apply Ingress RBAC configuration
+      run: |
         envsubst < $CODEBUILD_SRC_DIR/files/ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
+
+    - name: Install Ingress Controller
+      run: |
         helm install acs-ingress-$EKS_CLUSTER_NAME ingress-nginx/ingress-nginx --set controller.scope.enabled=true --set controller.scope.namespace=$NAMESPACE --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --set controller.ingressClassResource.name="$NAMESPACE-nginx" --set controller.ingressClassByName=true --atomic --namespace $NAMESPACE
-        kubectl get pods -n ${NAMESPACE}
-        kubectl get pods -n kube-system
-    - name: Install Alfresco Content Services
+
+    - name: Verify Ingress Controller pods
+      run: kubectl get pods -n ${NAMESPACE}
+
+    - name: Verify kube-system pods
+      run: kubectl get pods -n kube-system
+    - name: Create Docker registry secret
       run: |
         kubectl create secret docker-registry quay-registry-secret --docker-server=quay.io --docker-username=$QUAY_USERNAME --docker-password=$QUAY_PASSWORD -n ${NAMESPACE}
-        helm install acs $CODEBUILD_SRC_DIR/CICDAlfresco/alfresco-content-services --set externalPort="443" --set externalProtocol="https" --set externalHost="acs.${DOMAIN}" --set persistence.enabled=true --set persistence.storageClass.enabled=true --set persistence.storageClass.name="nfs-client" --set alfresco-repository.persistence.existingClaim="alf-content-pvc-${NAMESPACE}" --set alfresco-repository.persistence.enabled=true --set global.alfrescoRegistryPullSecrets=quay-registry-secret --set alfresco-sync-service.enabled=false --set postgresql-sync.enabled=false --set alfresco-transform-service.transformrouter.replicaCount="1" --set alfresco-transform-service.pdfrenderer.replicaCount="1" --set alfresco-transform-service.imagemagick.replicaCount="1" --set alfresco-transform-service.libreoffice.replicaCount="1" --set alfresco-transform-service.tika.replicaCount="1" --set alfresco-transform-service.transformmisc.replicaCount="1" --set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" --set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" --set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" --set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" --set alfresco-transform-service.tika.resources.limits.memory="2Gi" --set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" --set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" --set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" --set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" --set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" --set alfresco-transform-service.tika.resources.limits.cpu="250m" --set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" --set alfresco-transform-service.filestore.resources.limits.cpu="250m" --set postgresql.primary.resources.requests.cpu="250m" --set postgresql.primary.resources.limits.cpu="500m" --set postgresql.primary.resources.limits.memory="6Gi" --set alfresco-share.resources.limits.cpu="250m" --set alfresco-search-enterprise.resources.requests.cpu="250m" --set alfresco-search-enterprise.resources.limits.cpu="250m" --set alfresco-repository.resources.requests.cpu="500m" --set alfresco-repository.resources.limits.cpu="500m" --set alfresco-repository.readinessProbe.periodSeconds="200" --set alfresco-repository.livenessProbe.periodSeconds="200" --set alfresco-repository.startupProbe.periodSeconds="200" --set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" --set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" --set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" --set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" --set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" --set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" --set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" --set alfresco-search-enterprise.reindexing.enabled=false --timeout 20m0s --namespace=$NAMESPACE
-        kubectl get pods -n ${NAMESPACE}
+
+    - name: Install Alfresco Content Services
+      run: |
+        helm install acs $CODEBUILD_SRC_DIR/CICDAlfresco/alfresco-content-services \
+          --set externalPort="443" \
+          --set externalProtocol="https" \
+          --set externalHost="acs.${DOMAIN}" \
+          --set persistence.enabled=true \
+          --set persistence.storageClass.enabled=true \
+          --set persistence.storageClass.name="nfs-client" \
+          --set alfresco-repository.persistence.existingClaim="alf-content-pvc-${NAMESPACE}" \
+          --set alfresco-repository.persistence.enabled=true \
+          --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+          --set alfresco-sync-service.enabled=false \
+          --set postgresql-sync.enabled=false \
+          --set alfresco-transform-service.transformrouter.replicaCount="1" \
+          --set alfresco-transform-service.pdfrenderer.replicaCount="1" \
+          --set alfresco-transform-service.imagemagick.replicaCount="1" \
+          --set alfresco-transform-service.libreoffice.replicaCount="1" \
+          --set alfresco-transform-service.tika.replicaCount="1" \
+          --set alfresco-transform-service.transformmisc.replicaCount="1" \
+          --set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" \
+          --set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" \
+          --set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" \
+          --set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" \
+          --set alfresco-transform-service.tika.resources.limits.memory="2Gi" \
+          --set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" \
+          --set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" \
+          --set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" \
+          --set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" \
+          --set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" \
+          --set alfresco-transform-service.tika.resources.limits.cpu="250m" \
+          --set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" \
+          --set alfresco-transform-service.filestore.resources.limits.cpu="250m" \
+          --set postgresql.primary.resources.requests.cpu="250m" \
+          --set postgresql.primary.resources.limits.cpu="500m" \
+          --set postgresql.primary.resources.limits.memory="6Gi" \
+          --set alfresco-share.resources.limits.cpu="250m" \
+          --set alfresco-search-enterprise.resources.requests.cpu="250m" \
+          --set alfresco-search-enterprise.resources.limits.cpu="250m" \
+          --set alfresco-repository.resources.requests.cpu="500m" \
+          --set alfresco-repository.resources.limits.cpu="500m" \
+          --set alfresco-repository.readinessProbe.periodSeconds="200" \
+          --set alfresco-repository.livenessProbe.periodSeconds="200" \
+          --set alfresco-repository.startupProbe.periodSeconds="200" \
+          --set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" \
+          --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" \
+          --set alfresco-search-enterprise.reindexing.enabled=false \
+          --timeout 20m0s \
+          --namespace=$NAMESPACE
+
+    - name: Verify Alfresco Content Services pods
+      run: kubectl get pods -n ${NAMESPACE}
+
+    - name: Output deployment details
+      run: |
         echo "DOMAIN=$DOMAIN"
         echo "NAMESPACE=$NAMESPACE"
         echo "EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME"
