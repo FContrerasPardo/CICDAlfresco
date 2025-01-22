@@ -44,8 +44,6 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
-    - name: Debug Environment Variables
-      run: printenv | grep AWS
     - name: Set up kubectl
       run: |
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -83,20 +81,23 @@ jobs:
     #    terraform --version
     - name: Terraform init
       id: init
-      working-directory: ./terraform
+      working-directory: ./Terraform
       run: terraform init 
 
-    - name: cd Terraform && Terraform format
+    - name: Terraform format
       id: fmt
+      working-directory: ./Terraform
       run: terraform fmt -check
 
     - name: Terraform validate
       id: validate
-      run: cd Terraform && terraform validate
+      working-directory: ./Terraform
+      run: terraform validate
 
     - name: Terraform plan
       id: plan
-      run: cd Terraform && terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
+      working-directory: ./Terraform
+      run: terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
       continue-on-error: true
 
     - name: Terraform plan status
@@ -105,14 +106,15 @@ jobs:
 
     - name: Terraform Apply
       id: apply
+      working-directory: ./Terraform
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: cd Terraform && terraform apply -auto-approve -input=false -parallelism=1 planfile -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
 
     - name: Get Terraform outputs
       id: getoutput
+      working-directory: ./Terraform
       if: steps.apply.outcome == 'success'
       run:
-        cd Terraform
         terraform output
         EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
         export EKS_CLUSTER_ENDPOINT
