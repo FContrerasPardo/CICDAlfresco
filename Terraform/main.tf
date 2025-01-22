@@ -57,75 +57,66 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
-## Agrego addons necesarios
-#resource "aws_eks_addon" "coredns" {
-#  cluster_name      = aws_eks_cluster.alfresco_cluster.name
-#  addon_name        = "coredns"
-#  resolve_conflicts_on_create = "OVERWRITE"
-#
-#  tags = {
-#    Name = "EKS-CoreDNS"
-#  }
-#}
-#
-#resource "aws_eks_addon" "kube_proxy" {
-#  cluster_name      = aws_eks_cluster.alfresco_cluster.name
-#  addon_name        = "kube-proxy"
-#  resolve_conflicts_on_create = "OVERWRITE"
-#
-#  tags = {
-#    Name = "EKS-KubeProxy"
-#  }
-#}
-#
-#resource "aws_eks_addon" "vpc_cni" {
-#  cluster_name      = aws_eks_cluster.alfresco_cluster.name
-#  addon_name        = "vpc-cni"
-#  resolve_conflicts_on_create = "OVERWRITE"
-#
-#  tags = {
-#    Name = "EKS-VPCCNI"
-#  }
-#}
-#resource "aws_eks_addon" "efs_csi" {
-#  cluster_name = aws_eks_cluster.alfresco_cluster.name
-#  addon_name   = "aws-efs-csi-driver"
-#  resolve_conflicts_on_create = "OVERWRITE"
-#
-#  tags = {
-#    Name = "EFS-CSI-Addon"
-#  }
-#}
-#
-#resource "kubernetes_config_map" "aws_auth" {
-#  metadata {
-#    name      = "aws-auth"
-#    namespace = "kube-system"
-#  }
-#
-#  data = {
-#    mapRoles = jsonencode([
-#      {
-#        rolearn  = var.node_role_arn
-#        username = "system:node:{{EC2PrivateDNSName}}"
-#        groups   = ["system:bootstrappers", "system:nodes"]
-#      }
-#    ])
-#
-#    mapUsers = jsonencode([
-#      {
-#        userarn  = data.aws_iam_user.admin.arn
-#        username = "admin-user"
-#        groups   = ["system:masters"]
-#      }
-#    ])
-#  }
-#
-#  depends_on = [aws_eks_cluster.alfresco_cluster]
-#}
-#
-#resource "kubernetes_namespace" "alfresco_namespace" {
-#  metadata {
-#    name = var.namespace
-#  }
-#}
+# Agrego addons necesarios
+resource "aws_eks_addon" "coredns" {
+  cluster_name      = aws_eks_cluster.alfresco_cluster.name
+  addon_name        = "coredns"
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  tags = {
+    Name = "EKS-CoreDNS"
+  }
+}
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name      = aws_eks_cluster.alfresco_cluster.name
+  addon_name        = "kube-proxy"
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  tags = {
+    Name = "EKS-KubeProxy"
+  }
+}
+
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name      = aws_eks_cluster.alfresco_cluster.name
+  addon_name        = "vpc-cni"
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  tags = {
+    Name = "EKS-VPCCNI"
+  }
+}
+
+resource "kubernetes_config_map" "aws_auth" {
+  metadata {
+    name      = "aws-auth"
+    namespace = "kube-system"
+  }
+
+  data = {
+    mapRoles = jsonencode([
+      {
+        rolearn  = var.node_role_arn
+        username = "system:node:{{EC2PrivateDNSName}}"
+        groups   = ["system:bootstrappers", "system:nodes"]
+      }
+    ])
+
+    mapUsers = jsonencode([
+      {
+        userarn  = data.aws_iam_user.admin.arn
+        username = "admin-user"
+        groups   = ["system:masters"]
+      }
+    ])
+  }
+
+  depends_on = [aws_eks_cluster.alfresco_cluster]
+}
+
+resource "kubernetes_namespace" "alfresco_namespace" {
+  metadata {
+    name = var.namespace
+  }
+}

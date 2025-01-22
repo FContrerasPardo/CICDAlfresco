@@ -58,5 +58,5 @@ variable "iam_admin_user_name" {
 variable "namespace" {
   description = "The namespace to deploy resources into"
   type        = string
-  default     = "default"  # Cambia esto al valor por defecto que desees
+  default     = "alfresco"
 }
