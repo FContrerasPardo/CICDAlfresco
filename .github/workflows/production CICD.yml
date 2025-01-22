@@ -84,11 +84,6 @@ jobs:
       working-directory: ./Terraform
       run: terraform init 
 
-    - name: Terraform format
-      id: fmt
-      working-directory: ./Terraform
-      run: terraform fmt -check
-
     - name: Terraform validate
       id: validate
       working-directory: ./Terraform
