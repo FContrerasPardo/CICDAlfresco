@@ -92,7 +92,7 @@ jobs:
     - name: Terraform plan
       id: plan
       working-directory: ./Terraform
-      run: terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
+      run: terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN"
       continue-on-error: true
 
     - name: Terraform plan status
@@ -103,7 +103,7 @@ jobs:
       id: apply
       working-directory: ./Terraform
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: cd Terraform && terraform apply -auto-approve -input=false -parallelism=1 planfile -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -var="namespace=$NAMESPACE"
+      run: cd Terraform && terraform apply -auto-approve -input=false -parallelism=1 planfile -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN"
 
     - name: Get Terraform outputs
       id: getoutput
