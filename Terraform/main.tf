@@ -12,6 +12,7 @@ provider "aws" {
   shared_credentials_files = ["$HOME/.aws/credentials"]
 }
 
+
 # Definición del Clúster EKS usando las subnets y VPC creadas en network.tf
 resource "aws_eks_cluster" "alfresco_cluster" {
   name     = var.cluster_name
@@ -55,6 +56,7 @@ provider "kubernetes" {
   host                   = data.aws_eks_cluster.cluster.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
   token                  = data.aws_eks_cluster_auth.cluster.token
+  config_path = "~/.kube/config"
 }
 
 ## Agrego addons necesarios
@@ -88,29 +90,29 @@ provider "kubernetes" {
 #  }
 #}
 
-resource "kubernetes_config_map" "aws_auth" {
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
-
-  data = {
-    mapRoles = jsonencode([
-      {
-        rolearn  = var.node_role_arn
-        username = "system:node:{{EC2PrivateDNSName}}"
-        groups   = ["system:bootstrappers", "system:nodes"]
-      }
-    ])
-
-    mapUsers = jsonencode([
-      {
-        userarn  = data.aws_iam_user.admin.arn
-        username = "admin-user"
-        groups   = ["system:masters"]
-      }
-    ])
-  }
-
-  depends_on = [aws_eks_cluster.alfresco_cluster]
-}
+#resource "kubernetes_config_map" "aws_auth" {
+#  metadata {
+#    name      = "aws-auth"
+#    namespace = "kube-system"
+#  }
+#
+#  data = {
+#    mapRoles = jsonencode([
+#      {
+#        rolearn  = var.node_role_arn
+#        username = "system:node:{{EC2PrivateDNSName}}"
+#        groups   = ["system:bootstrappers", "system:nodes"]
+#      }
+#    ])
+#
+#    mapUsers = jsonencode([
+#      {
+#        userarn  = data.aws_iam_user.admin.arn
+#        username = "admin-user"
+#        groups   = ["system:masters"]
+#      }
+#    ])
+#  }
+#
+#  depends_on = [aws_eks_cluster.alfresco_cluster]
+#}
