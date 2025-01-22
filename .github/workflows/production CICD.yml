@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - stage
 
 env:
   # Credentials for deployment to AWS
@@ -36,6 +35,7 @@ jobs:
   CICD_Alfresco:
     name: Install dependencies
     runs-on: ubuntu-latest
+    environment: production
     defaults:
       run:
         shell: bash
@@ -44,20 +44,19 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v4
-
+    - name: Debug Environment Variables
+      run: printenv | grep AWS
     - name: Set up kubectl
       run: |
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
         kubectl version --client
-
     - name: Set up eksctl
       run: |
         curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
         sudo mv /tmp/eksctl /usr/local/bin
         eksctl version
-
     - name: Set up Helm
       run: |
         curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
@@ -69,7 +68,7 @@ jobs:
       with: 
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+        aws-region: ${{ vars.AWS_REGION }}
   # terraform:
     - name: Setup Terraform with specified version on the runner
       uses: hashicorp/setup-terraform@v2
