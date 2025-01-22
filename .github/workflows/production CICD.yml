@@ -109,13 +109,8 @@ jobs:
       id: getoutput
       working-directory: ./Terraform
       if: steps.apply.outcome == 'success'
-      run: |
-        EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
-        VPC_ID=$(terraform output -raw vpc_id)
-        EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
-        echo "EKS_CLUSTER_ENDPOINT=$EKS_CLUSTER_ENDPOINT" >> $GITHUB_ENV
-        echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
-        echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $GITHUB_ENV
+      run:
+        terraform output
 
     - name: Get Kube config file
       id: getconfig
