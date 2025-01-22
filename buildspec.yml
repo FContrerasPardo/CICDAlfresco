@@ -71,7 +71,6 @@ phases:
       # ebs_setup: configurar cuenta de servicio, el rol y Addon para Driver de CSI
       - eksctl create iamserviceaccount --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME --namespace kube-system --cluster $EKS_CLUSTER_NAME --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve --role-only --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
       - if eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $REGION; then eksctl delete addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $REGION; fi
-      - eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
       - helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
       - helm repo update
       - envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
