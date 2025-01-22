@@ -92,7 +92,7 @@ jobs:
     - name: Terraform plan
       id: plan
       working-directory: ./Terraform
-      run: terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN"
+      run: terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -no-color -input=false -out planfile
       continue-on-error: true
 
     - name: Terraform plan status
