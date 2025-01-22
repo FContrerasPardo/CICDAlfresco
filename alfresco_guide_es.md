@@ -188,6 +188,7 @@ aws configure
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
+  export AWS_REGION=us-east-1
   export NAMESPACE=alfrescot
   export EFSDNS=fs-0a9d941ecdcaa9bc1.efs.us-east-1.amazonaws.com
   export N=alfrescot
@@ -196,6 +197,9 @@ aws configure
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
   
+
+
+
 
   export EKS_CLUSTER_NAME=alfresco-M #NO USAR MAYUSCULAS
   export ECR_NAME=alfresco

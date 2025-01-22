@@ -10,6 +10,7 @@ env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   # Credentials of repositories
   NEXUS_USER: ${{ secrets.NEXUS_USER }}
   NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
@@ -125,8 +126,8 @@ jobs:
         
     - name: Setup EBS CSI Driver and EFS CSI Driver
       run: |
-        eksctl create iamserviceaccount --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME --namespace kube-system --cluster $EKS_CLUSTER_NAME --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve --role-only --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
-        if eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION; then eksctl delete addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION; fi
+        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
+        eksctl delete addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION
         eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
         helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
         helm repo update
