@@ -150,24 +150,24 @@ jobs:
     - name: Create EFS StorageClass
       working-directory: ./files
       run: |
-        if ! kubectl get storageclass alfresco-efs-sc-${EFS_PV_NAME}; then
+        if ! kubectl get storageclass | grep -q "alfresco-efs-sc-${EFS_PV_NAME}"; then
           envsubst < alf-efs-storage-class.yaml | kubectl create -f -
         fi
       
     - name: Create EFS Persistent Volume
       working-directory: ./files
       run: |
-        if ! kubectl get pv alf-content-pv-${EFS_PV_NAME}; then
+        if ! kubectl get pv | grep -q "alf-content-pv-${EFS_PV_NAME}"; then
           envsubst < alf-content-persistence-volume.yaml | kubectl apply -f -
         fi
       
     - name: Create EFS Persistent Volume Claim
       working-directory: ./files
       run: |
-        if ! kubectl get pvc alf-content-pvc-${EFS_PV_NAME}; then
+        if ! kubectl get pvc | grep -q "alf-content-pvc-${EFS_PV_NAME}"; then
           envsubst < alf-content-persistence-volume-claim.yaml | kubectl create -f -
         fi
-        
+
     - name: Apply External DNS configuration
       working-directory: ./files
       run: |
