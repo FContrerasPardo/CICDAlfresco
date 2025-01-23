@@ -29,7 +29,6 @@ env:
   # DNS Configuration
   DOMAIN: ${{ vars.DOMAIN }}
   CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
-  EFSDNS
 
 permissions:
   contents: read
