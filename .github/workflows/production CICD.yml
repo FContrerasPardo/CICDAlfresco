@@ -209,9 +209,18 @@ jobs:
 
     - name: Verify kube-system pods
       run: kubectl get pods -n kube-system
-    - name: Create Docker registry secret
+    
+    - name: Create Docker Registry Secret if not exists
       run: |
-        kubectl create secret docker-registry quay-registry-secret --docker-server=quay.io --docker-username=$QUAY_USERNAME --docker-password=$QUAY_PASSWORD -n ${NAMESPACE}
+        if ! kubectl get secret quay-registry-secret -n ${NAMESPACE} 2>/dev/null; then
+          kubectl create secret docker-registry quay-registry-secret \
+            --docker-server=quay.io \
+            --docker-username=$QUAY_USERNAME \
+            --docker-password=$QUAY_PASSWORD \
+            -n ${NAMESPACE}
+        else
+          echo "Secret quay-registry-secret already exists in namespace ${NAMESPACE}"
+        fi
 
     - name: Install Alfresco Content Services
       run: |
