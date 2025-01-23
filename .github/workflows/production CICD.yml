@@ -109,7 +109,6 @@ jobs:
 
     - name: Print Outputs
       run: |
-        echo "${{ fromJson(steps.tf-outputs.outputs.efs_dns_name) }}"
         echo "${{ steps.tf-outputs.outputs.efs_dns_name }}"
 
     - name: Get Terraform outputs
