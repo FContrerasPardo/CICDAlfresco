@@ -149,17 +149,17 @@ jobs:
     - name: Create EFS StorageClass
       working-directory: ./files
       run: |
-        envsubst < /alf-efs-storage-class.yaml | kubectl create -f -
+        envsubst < alf-efs-storage-class.yaml | kubectl create -f -
       
     - name: Create EFS Persistent Volume
       working-directory: ./files
       run: |
-        envsubst < /alf-content-persistence-volume.yaml | kubectl apply -f -
+        envsubst < alf-content-persistence-volume.yaml | kubectl apply -f -
       
     - name: Create EFS Persistent Volume Claim
       working-directory: ./files
       run: |
-        envsubst < /alf-content-persistence-volume-claim.yaml | kubectl create -f -
+        envsubst < alf-content-persistence-volume-claim.yaml | kubectl create -f -
     - name: Apply External DNS configuration
       working-directory: ./files
       run: |
