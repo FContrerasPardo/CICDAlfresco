@@ -215,7 +215,7 @@ jobs:
 
     - name: Install Alfresco Content Services
       run: |
-        helm install acs $CODEBUILD_SRC_DIR/CICDAlfresco/alfresco-content-services \
+        helm install acs ./alfresco-content-services \
           --set externalPort="443" \
           --set externalProtocol="https" \
           --set externalHost="acs.${DOMAIN}" \
