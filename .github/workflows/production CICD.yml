@@ -152,7 +152,7 @@ jobs:
     - name: Create EFS StorageClass
       working-directory: ./files
       run: |
-        if ! kubectl get storageclass 2>/dev/null | grep -q "alfresco-efs-sc-${EFS_PV_NAME}"; then
+        if ! kubectl get storageclass -n ${NAMESPACE} 2>/dev/null | grep -q "alfresco-efs-sc-${EFS_PV_NAME}"; then
           envsubst < alf-efs-storage-class.yaml | kubectl create -f -
         fi
       continue-on-error: true
@@ -160,7 +160,7 @@ jobs:
     - name: Create EFS Persistent Volume
       working-directory: ./files
       run: |
-        if ! kubectl get pv 2>/dev/null | grep -q "alf-content-pv-${EFS_PV_NAME}"; then
+        if ! kubectl get pv -n ${NAMESPACE} 2>/dev/null | grep -q "alf-content-pv-${EFS_PV_NAME}"; then
           envsubst < alf-content-persistence-volume.yaml | kubectl apply -f -
         fi
       continue-on-error: true
@@ -168,7 +168,7 @@ jobs:
     - name: Create EFS Persistent Volume Claim
       working-directory: ./files
       run: |
-        if ! kubectl get pvc 2>/dev/null | grep -q "alf-content-pvc-${EFS_PV_NAME}"; then
+        if ! kubectl get pvc -n ${NAMESPACE} 2>/dev/null | grep -q "alf-content-pvc-${EFS_PV_NAME}"; then
           envsubst < alf-content-persistence-volume-claim.yaml | kubectl create -f -
         fi
       continue-on-error: true
