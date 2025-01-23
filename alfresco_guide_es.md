@@ -190,13 +190,14 @@ aws configure
   export REGION=us-east-1
   export AWS_REGION=us-east-1
   export NAMESPACE=alfresco1
-  export EFSDNS=fs-0a9d941ecdcaa9bc1.efs.us-east-1.amazonaws.com
+  export EFSDNS=fs-0a9d941ecdcaa9bc1.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
   export N=alfresco1
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
   export EFS_PV_NAME=alfresco
+  
 
 
 
