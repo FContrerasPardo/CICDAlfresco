@@ -209,7 +209,7 @@ jobs:
           --set persistence.enabled=true \
           --set persistence.storageClass.enabled=true \
           --set persistence.storageClass.name="nfs-client" \
-          --set alfresco-repository.persistence.existingClaim="alf-content-pvc-${NAMESPACE}" \
+          --set alfresco-repository.persistence.existingClaim="alf-content-pvc" \
           --set alfresco-repository.persistence.enabled=true \
           --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
           --set alfresco-sync-service.enabled=false \
