@@ -101,6 +101,17 @@ jobs:
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform apply -auto-approve -input=false -parallelism=1 planfile
 
+    - name: Get outputs
+      uses: dflook/terraform-output@v1
+      id: tf-outputs
+      with:
+        path: ./Terraform
+
+    - name: Print Outputs
+      run: |
+        echo "${{ fromJson(steps.tf-outputs.outputs.efs_dns_name) }}"
+        echo "${{ steps.tf-outputs.outputs.efs_dns_name }}"
+
     - name: Get Terraform outputs
       id: getoutput
       working-directory: ./Terraform
