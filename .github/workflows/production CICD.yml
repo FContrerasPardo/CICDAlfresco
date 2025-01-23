@@ -111,9 +111,9 @@ jobs:
         VPC_ID=$(terraform output -raw vpc_id)
         EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
         echo "EKS_CLUSTER_ENDPOINT=$EKS_CLUSTER_ENDPOINT" >> $GITHUB_ENV
-        echo EKS_CLUSTER_ENDPOINT
-        echo VPC_ID
-        echo EFS_DNS_NAME
+        echo $EKS_CLUSTER_ENDPOINT
+        echo $VPC_ID
+        echo $EFS_DNS_NAME
         echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
         echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $GITHUB_ENV
 
