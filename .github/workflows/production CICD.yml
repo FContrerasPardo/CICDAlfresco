@@ -25,6 +25,7 @@ env:
   EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
   NODE_ROLE_ARN: ${{ secrets.NODE_ROLE_ARN }}
   EKS_SERVICE_ROLE_ARN: ${{ secrets.EKS_SERVICE_ROLE_ARN }}
+  EFS_PV_NAME: ${{ vars.EFS_PV_NAME }}
   # DNS Configuration
   DOMAIN: ${{ vars.DOMAIN }}
   CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
