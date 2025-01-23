@@ -9,7 +9,7 @@ spec:
   capacity:
     storage: 1Gi
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: alfresco-efs-sc
+  storageClassName: alfresco-efs-sc-${EFS_PV_NAME}
   nfs:
     server: ${EFS_DNS_NAME}
     path: "/"
