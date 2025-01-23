@@ -277,6 +277,8 @@ jobs:
         --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" \
         --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" \
         --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" \
+        --set alfresco-share.livenessProbe.periodSeconds="200" \
+        --set alfresco-share.readinessProbe.periodSeconds="200" \
         --set alfresco-search-enterprise.reindexing.enabled=false \
         --timeout 20m0s
 

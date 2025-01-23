@@ -202,18 +202,19 @@ aws configure
 
 
 
-  export EKS_CLUSTER_NAME=alfresco-M #NO USAR MAYUSCULAS
+  export EKS_CLUSTER_NAME=alfresco
   export ECR_NAME=alfresco
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
-  export NAMESPACE=alfrescom
-  export N=alfrescom
-  export EFSDNS=fs-002369cbea25babf8.efs.us-east-1.amazonaws.com
+  export NAMESPACE=alfresco
+  export N=alfresco
+  export EFSDNS=fs-098a5b313abf42c10.efs.us-east-1.amazonaws.com
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
+  export EFS_PV_NAME=
 
    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
    EKS_CLUSTER_NAME="devopsalfresco"
@@ -1055,6 +1056,8 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" \
 --set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" \
 --set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" \
+--set alfresco-share.livenessProbe.periodSeconds="200" \
+--set alfresco-share.readinessProbe.periodSeconds="200" \
 --set alfresco-search-enterprise.reindexing.enabled=false \
 --timeout 20m0s \
 --namespace=$NAMESPACE
@@ -1224,7 +1227,7 @@ helm install aps ./alfresco-process-services \
 --set postgresql.global.storageClass="nfs-client" \
 --atomic \
 --timeout 10m0s \
---namespace=alfresco2
+--namespace=$NAMESPACE
 
 
 --set externalPort="443" \
@@ -1494,13 +1497,13 @@ Tras eliminar el EFS, validar y reliminar los recursos persistentes.
 Eliminar PVCs (Persistent Volume Claims):
 
 ```bash
-kubectl delete pvc --all -n alfresco
+kubectl delete pvc --all -n $NAMESPACE
 ```
 Eliminar ConfigMaps y Secrets:
 
 ```bash
-kubectl delete configmap --all -n alfresco
-kubectl delete secret --all -n alfresco
+kubectl delete configmap --all -n $NAMESPACE
+kubectl delete secret --all -n $NAMESPACE
 ```
 Eliminar el Namespace (Opcional): Si no necesitas mantener el namespace alfresco, elimínalo:
 
