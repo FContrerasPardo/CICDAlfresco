@@ -11,5 +11,5 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: alfresco-efs-sc
   nfs:
-    server: ${EFSDNS}
+    server: ${EFS_DNS_NAME}
     path: "/"
