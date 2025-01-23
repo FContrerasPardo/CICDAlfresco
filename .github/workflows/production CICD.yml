@@ -142,23 +142,28 @@ jobs:
         helm repo update
 
     - name: Install EFS CSI Driver
+      working-directory: ./files
       run: |
-        envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
+        envsubst < aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
     
     - name: Create EFS StorageClass
+      working-directory: ./files
       run: |
-        envsubst < ~/environment/CICDAlfresco/files/alf-efs-storage-class.yaml | kubectl create -f -
+        envsubst < /alf-efs-storage-class.yaml | kubectl create -f -
       
     - name: Create EFS Persistent Volume
+      working-directory: ./files
       run: |
-        envsubst < ~/environment/CICDAlfresco/files/alf-content-persistence-volume.yaml | kubectl apply -f -
+        envsubst < /alf-content-persistence-volume.yaml | kubectl apply -f -
       
     - name: Create EFS Persistent Volume Claim
+      working-directory: ./files
       run: |
-        envsubst < ~/environment/CICDAlfresco/files/alf-content-persistence-volume-claim.yaml | kubectl create -f -
+        envsubst < /alf-content-persistence-volume-claim.yaml | kubectl create -f -
     - name: Apply External DNS configuration
+      working-directory: ./files
       run: |
-        kubectl apply -f $CODEBUILD_SRC_DIR/files/external-dns.yaml
+        kubectl apply -f external-dns.yaml
 
     - name: Verify External DNS ConfigMap
       run: |
@@ -178,8 +183,9 @@ jobs:
         helm repo update
 
     - name: Apply Ingress RBAC configuration
+      working-directory: ./files
       run: |
-        envsubst < $CODEBUILD_SRC_DIR/files/ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
+        envsubst < ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
 
     - name: Install Ingress Controller
       run: |
