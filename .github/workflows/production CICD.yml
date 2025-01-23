@@ -109,7 +109,8 @@ jobs:
 
     - name: Print Outputs
       run: |
-        echo "${{ steps.tf-outputs.outputs.efs_dns_name }}" >> $GITHUB_ENV
+        echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}"
+        echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}" >> $GITHUB_ENV
 
     - name: Get Terraform outputs
       id: getoutput
