@@ -109,24 +109,12 @@ jobs:
 
     - name: Print Outputs
       run: |
+        echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}"
         echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}"
+        echo "EKS_CLUSTER_ENDPOINT=${{steps.tf-outputs.outputs.eks_cluster_endpoint}}"
+        echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}" >> $GITHUB_ENV
         echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}" >> $GITHUB_ENV
-
-    - name: Get Terraform outputs
-      id: getoutput
-      working-directory: ./Terraform
-      if: steps.apply.outcome == 'success'
-      run: |
-        terraform output
-        EKS_CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint)
-        VPC_ID=$(terraform output -raw vpc_id)
-        EFS_DNS_NAME=$(terraform output -raw efs_dns_name)
-        echo "EKS_CLUSTER_ENDPOINT=$EKS_CLUSTER_ENDPOINT" >> $GITHUB_ENV
-        echo $EKS_CLUSTER_ENDPOINT
-        echo $VPC_ID
-        echo $EFS_DNS_NAME
-        echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
-        echo "EFS_DNS_NAME=$EFS_DNS_NAME" >> $GITHUB_ENV
+        echo "EKS_CLUSTER_ENDPOINT=${{steps.tf-outputs.outputs.eks_cluster_endpoint}}" >> $GITHUB_ENV
 
     - name: Get Kube config file
       id: getconfig
