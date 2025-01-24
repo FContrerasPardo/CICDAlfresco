@@ -1,0 +1,107 @@
+---
+alfresco-repository:
+  image:
+    repository: localhost/alfresco/alfresco-content-repository
+    tag: latest
+share:
+  image:
+    repository: localhost/alfresco/alfresco-share
+    tag: latest
+alfresco-search:
+  image:
+    repository: localhost/alfresco/alfresco-search-service
+    tag: latest
+alfresco-search-enterprise:
+  reindexing:
+    image:
+      repository: localhost/alfresco/alfresco-elasticsearch-reindexing
+      tag: latest
+    hookExecution: false
+  liveIndexing:
+    content:
+      image:
+        repository: localhost/alfresco/alfresco-elasticsearch-live-indexing-content
+        tag: latest
+    metadata:
+      image:
+        repository: localhost/alfresco/alfresco-elasticsearch-live-indexing-metadata
+        tag: latest
+    path:
+      image:
+        repository: localhost/alfresco/alfresco-elasticsearch-live-indexing-path
+        tag: latest
+    mediation:
+      image:
+        repository: localhost/alfresco/alfresco-elasticsearch-live-indexing-mediation
+        tag: latest
+alfresco-transform-service:
+  pdfrenderer:
+    image:
+      repository: localhost/alfresco/alfresco-pdf-renderer
+      tag: latest
+  imagemagick:
+    image:
+      repository: localhost/alfresco/alfresco-imagemagick
+      tag: latest
+  libreoffice:
+    image:
+      repository: localhost/alfresco/alfresco-libreoffice
+      tag: latest
+  transformmisc:
+    image:
+      repository: localhost/alfresco/alfresco-transform-misc
+      tag: latest
+  tika:
+    image:
+      repository: localhost/alfresco/alfresco-tika
+      tag: latest
+  transformrouter:
+    image:
+      repository: localhost/alfresco/alfresco-transform-router
+      tag: latest
+  filestore:
+    image:
+      repository: localhost/alfresco/alfresco-shared-file-store
+      tag: latest
+alfresco-digital-workspace:
+  image:
+    repository: localhost/alfresco/alfresco-digital-workspace
+    tag: latest
+  volumeMounts:
+    - name: app-config
+      mountPath: /usr/share/nginx/html/app.config.json
+      subPath: app.config.json
+  volumes:
+    - name: app-config
+      configMap:
+        name: adw-config
+        items:
+          - key: app.config.json
+            path: app.config.json
+alfresco-sync-service:
+  image:
+    repository: localhost/alfresco/alfresco-sync-service
+    tag: latest
+alfresco-control-center:
+  image:
+    repository: localhost/alfresco/alfresco-control-center
+    tag: latest
+  volumeMounts:
+    - name: app-config
+      mountPath: /usr/share/nginx/html/app.config.json
+      subPath: app.config.json
+  volumes:
+    - name: app-config
+      configMap:
+        name: acc-config
+        items:
+          - key: app.config.json
+            path: app.config.json
+dtas:
+  additionalArgs:
+    - --tb=short
+    - -k
+    - not test_api_explorer_reachability
+  config:
+    config:
+      search_timeout_seconds: "360"

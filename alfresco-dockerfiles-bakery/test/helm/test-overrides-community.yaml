@@ -1,0 +1,37 @@
+---
+alfresco-digital-workspace:
+  enabled: false
+alfresco-sync-service:
+  enabled: false
+postgresql-sync:
+  enabled: false
+dtas:
+  config:
+    assertions:
+      acs:
+        edition: Community
+        version: 23.3.0
+        modules:
+          - id: alfresco-aos-module
+            version: 3.1.0
+            installed: true
+      adw: null
+alfresco-repository:
+  startupProbe:
+    initialDelaySeconds: 120
+alfresco-transform-service:
+  pdfrenderer:
+    livenessProbe:
+      initialDelaySeconds: 120
+  imagemagick:
+    livenessProbe:
+      initialDelaySeconds: 120
+  libreoffice:
+    livenessProbe:
+      initialDelaySeconds: 120
+  tika:
+    livenessProbe:
+      initialDelaySeconds: 120
+  transformmisc:
+    livenessProbe:
+      initialDelaySeconds: 120

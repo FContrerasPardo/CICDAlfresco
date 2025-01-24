@@ -1,0 +1,178 @@
+name: CI - Build Alfresco to Amazon ECR
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Tag for the Docker images'
+        required: true
+        type: string
+      acs_version:
+        description: 'Version of ACS to build'
+        required: true
+        type: string
+
+env:
+  # Credentials for deployment to AWS
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  # Credentials of repositories
+  NEXUS_USER: ${{ secrets.NEXUS_USER }}
+  NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+  QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+  # Docker image repository
+  ECR_NAME: ${{ vars.ECR_NAME }}
+  REGISTRY_ARN: ${{ secrets.REGISTRY }}
+  REGISTRY_NAMESPACE: ${{ vars.REGISTRY_NAMESPACE }}
+  TAG: ${{ inputs.tag }}
+  TARGETARCH: ${{ vars.TARGETARCH }}
+  # Cluster Configuration
+  NAMESPACE: ${{ vars.NAMESPACE }}
+  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+  NODE_ROLE_ARN: ${{ secrets.NODE_ROLE_ARN }}
+  EKS_SERVICE_ROLE_ARN: ${{ secrets.EKS_SERVICE_ROLE_ARN }}
+  EFS_PV_NAME: ${{ vars.EFS_PV_NAME }}
+  # DNS Configuration
+  DOMAIN: ${{ vars.DOMAIN }}
+  CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./alfresco-dockerfiles-bakery
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+    
+    - uses: Alfresco/alfresco-build-tools/.github/actions/free-hosted-runner-disk-space@v8.2.0
+    
+    - name: Setup nexus authentication
+      run: |
+        echo "machine nexus.alfresco.com" >> ~/.netrc
+        echo "login ${{ secrets.NEXUS_USERNAME }}" >> ~/.netrc
+        echo "password ${{ secrets.NEXUS_PASSWORD }}" >> ~/.netrc
+    
+    - name: Restore packages artifacts
+      uses: actions/cache/restore@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+      id: artifacts-cache
+      with:
+        key: ${{ runner.os }}-packages-v2-${{ hashFiles('**/artifacts.json') }}-${{ inputs.acs_version }}
+        path: artifacts_cache/**
+    
+    - name: Fetch artifacts from nexus
+      env:
+        ACS_VERSION: ${{ inputs.acs_version }}
+      run: ./scripts/fetch-artifacts.sh
+    
+    - name: Save packages artifacts
+      if: steps.artifacts-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+      with:
+        key: ${{ steps.artifacts-cache.outputs.cache-primary-key }}
+        path: artifacts_cache/**
+    
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with: 
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ vars.AWS_REGION }}
+    
+    - name: Login to ECR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.REGISTRY }}
+        username: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    
+    - name: Collect Workflow Telemetry
+      uses: catchpoint/workflow-telemetry-action@94c3c3d9567a0205de6da68a76c428ce4e769af1 # v2.0.0
+      with:
+        comment_on_pr: false
+    
+    - name: Enumerate bake targets
+      id: bake-targets
+      uses: docker/bake-action/subaction/list-targets@2e3d19baedb14545e5d41222653874f25d5b4dfb  # v5.10.0
+      with:
+        target: default
+    
+    - name: Enumerate registry cache targets
+      id: cache-targets
+      env:
+        CACHE_TARGET: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/bakery-cache
+      run: |
+        echo 'cache-set<<EOF' >> $GITHUB_OUTPUT
+        echo '${{ steps.bake-targets.outputs.targets }}' | jq -r '.[] | '\
+        '"\(.).cache-from=type=registry,ref=${{ env.CACHE_TARGET }}:${{ inputs.tag }}-\(.)\n'\
+        '\(.).cache-from=type=registry,ref=${{ env.CACHE_TARGET }}:${{ github.event.repository.default_branch }}-\(.)\n'\
+        '\(.).cache-to=type=registry,ref=${{ env.CACHE_TARGET }}:${{ inputs.tag }}-\(.)"' >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
+
+    - name: Determine the tomcat version
+      env:
+        TOMCAT_VERSIONS_FILE: "tomcat/tomcat_versions.yaml"
+      run: |
+        if [[ ${{ inputs.acs_version }} == "23" ]]; then
+          tomcat_field="tomcat10"
+        else
+          tomcat_field="tomcat9"
+        fi
+        echo "TOMCAT_MAJOR=$(yq e ".${tomcat_field}.major" ${{ env.TOMCAT_VERSIONS_FILE }})" >> $GITHUB_ENV
+        echo "TOMCAT_VERSION=$(yq e ".${tomcat_field}.version" ${{ env.TOMCAT_VERSIONS_FILE }})" >> $GITHUB_ENV
+        echo "TOMCAT_SHA512=$(yq e ".${tomcat_field}.sha512"  ${{ env.TOMCAT_VERSIONS_FILE }})" >> $GITHUB_ENV
+
+
+    - name: login to ECR
+      run: echo ${{ secrets.AWS_ACCESS_KEY_ID }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 706722401192.dkr.ecr.us-east-1.amazonaws.com
+
+    - name: Create repositories
+      run: |
+        chmod +x ./scripts/create-repositories.sh
+        ./scripts/create-repositories.sh
+
+# Esto viene del MAKEFILE
+    - name: Make Docker images
+      id: make
+      run: |
+        make ${{ env.MAKE_TARGET }}
+    - name: Check Images are loaded
+      run: |
+        echo -n "Checking images are loaded in local Docker Engine..."
+        docker images --format "{{.Repository}}:{{.Tag}}" | grep alfresco || { echo "No Alfresco image found"; exit 1; }
+    - name: Install Grype
+      uses: anchore/scan-action/download-grype@5ed195cc06065322983cae4bb31e2a751feb86fd # v5.2.0
+      id: grype-install
+    - name: Add Grype to PATH
+      run: echo "$(dirname ${{ steps.grype-install.outputs.cmd }})" >> $GITHUB_PATH
+    - name: Grype scan
+      run: |
+        make grype GRYPE_TARGET="${{ env.MAKE_TARGET }}" GRYPE_OPTS="--only-fixed --ignore-states wont-fix"
+
+
+#para hacer un bake de todas las imagenes del repositorio:
+#    - name: Bake Docker images
+#      env:
+#        TARGETARCH: ${{ inputs.acs_version == '23' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+#        DOCKER_PUSH: ${{ github.actor != 'dependabot[bot]'}}
+#      uses: docker/bake-action@2e3d19baedb14545e5d41222653874f25d5b4dfb  # v5.10.0
+#      with:
+#        set: |
+#          *.output=type=registry,push=${{ env.DOCKER_PUSH }}
+#          ${{ steps.cache-targets.outputs.cache-set }}
+
+
+
+
+
