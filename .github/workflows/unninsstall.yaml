@@ -43,7 +43,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./Terraform
+        working-directory: Terraform
     
     steps:
     - name: Check if sure to uninstall ACS
