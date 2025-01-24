@@ -1,7 +1,7 @@
 name: Uninstall and Delete ACS resources
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       sure:
           description: 'are you Sure to uninstall ACS? yes or no'
