@@ -1,4 +1,4 @@
-name: Cd - Deploy Alfresco to Amazon EKS
+name: CD - Deploy Alfresco to Amazon EKS
 
 on:
   push:

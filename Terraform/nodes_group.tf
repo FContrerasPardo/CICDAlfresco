@@ -8,8 +8,8 @@ resource "aws_eks_node_group" "alfresco_node_group" {
     aws_subnet.alfresco_private_subnet_2.id
   ]
   scaling_config {
-    desired_size = 4
-    max_size     = 4
+    desired_size = 3
+    max_size     = 3
     min_size     = 3
   }
   remote_access {
@@ -17,7 +17,7 @@ resource "aws_eks_node_group" "alfresco_node_group" {
     source_security_group_ids = [aws_security_group.alfresco_cluster_sg.id]
   }
   capacity_type  = "SPOT"
-  instance_types = ["m5.xlarge"]
+  instance_types = ["t3.xlarge"]
 
   depends_on = [
     aws_eks_cluster.alfresco_cluster,
