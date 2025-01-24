@@ -1,0 +1,67 @@
+name: CI - Build Alfresco to Amazon ECR
+
+on:
+  workflow_call:
+    inputs:
+      sure:
+          description: 'are you Sure to uninstall ACS? yes or no'
+          required: true
+          type: string
+
+env:
+  # Credentials for deployment to AWS
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  # Credentials of repositories
+  NEXUS_USER: ${{ secrets.NEXUS_USER }}
+  NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+  QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+  QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+  # Docker image repository
+  ECR_NAME: ${{ vars.ECR_NAME }}
+  TAG: ${{ vars.TAG }}
+  TARGETARCH: ${{ vars.TARGETARCH }}
+  # Cluster Configuration
+  NAMESPACE: ${{ vars.NAMESPACE }}
+  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+  NODE_ROLE_ARN: ${{ secrets.NODE_ROLE_ARN }}
+  EKS_SERVICE_ROLE_ARN: ${{ secrets.EKS_SERVICE_ROLE_ARN }}
+  EFS_PV_NAME: ${{ vars.EFS_PV_NAME }}
+  # DNS Configuration
+  DOMAIN: ${{ vars.DOMAIN }}
+  CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
+
+permissions:
+  contents: read
+
+jobs:
+  Uninstall:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./Terraform
+    
+    steps:
+    - name: Check if sure to uninstall ACS
+      run: |
+        if [ "${{ inputs.sure }}" != "yes" ]; then
+          echo "Uninstallation cancelled."
+          exit 1
+        fi
+        
+    - name: Uninstall ACS Helm Chart
+      run: helm uninstall acs --namespace $NAMESPACE  
+    - name: Uninstall ACS Ingress Helm Chart
+      run: helm uninstall acs-ingress-$EKS_CLUSTER_NAME -n $NAMESPACE  
+    - name: Delete all PVCs
+      run: kubectl delete pvc --all -n $NAMESPACE  
+    - name: Delete all ConfigMaps
+      run: kubectl delete configmap --all -n $NAMESPACE  
+    - name: Delete all Secrets
+      run: kubectl delete secret --all -n $NAMESPACE  
+    - name: Destroy Terraform resources
+      run: terraform destroy -auto-approve
