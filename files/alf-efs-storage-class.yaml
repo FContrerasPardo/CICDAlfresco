@@ -1,7 +1,7 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: alfresco-efs-sc
+  name: alfresco-efs-sc-${EFS_PV_NAME}
   namespace: ${NAMESPACE}
 provisioner: efs.csi.aws.com
 allowVolumeExpansion: true
