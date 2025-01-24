@@ -223,6 +223,7 @@ jobs:
         fi
 
     - name: Install Alfresco Content Services
+      id : helm_install
       run: |
         helm upgrade acs ./alfresco-content-services --install \
         --namespace $NAMESPACE \
@@ -281,6 +282,22 @@ jobs:
         --set alfresco-share.readinessProbe.periodSeconds="200" \
         --set alfresco-search-enterprise.reindexing.enabled=false \
         --timeout 20m0s
+    
+    - name: Watch Helm deployment
+      env:
+        HELM_INSTALL_TIMEOUT: 10m
+      run: |
+        kubectl get pods --watch &
+        KWPID=$!
+        kubectl wait --timeout=${{ env.HELM_INSTALL_TIMEOUT }} --all=true --for=condition=Ready pods
+        kill $KWPID
+
+    - name: Debug cluster status after install
+      if: always() && steps.helm_install.outcome != 'skipped'
+      run: |
+        helm ls --all-namespaces --all
+        kubectl get all --all-namespaces
+        kubectl describe pod
 
     - name: Verify Alfresco Content Services pods
       run: kubectl get pods -n ${NAMESPACE}
