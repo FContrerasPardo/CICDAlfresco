@@ -1,4 +1,4 @@
-name: CI - Build Alfresco to Amazon ECR
+name: Uninstall and Delete ACS resources
 
 on:
   workflow_call:
