@@ -76,6 +76,10 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ vars.AWS_REGION }}
+    - name: Get Kube config file
+      id: getconfig
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
     - name: Setup Terraform with specified version on the runner
       uses: hashicorp/setup-terraform@v2
       # with:
@@ -84,6 +88,8 @@ jobs:
       id: init
       working-directory: ./Terraform
       run: terraform init 
+    
+
     - name: Uninstall ACS Helm Chart
       run: helm uninstall acs --namespace $NAMESPACE  
     - name: Uninstall ACS Ingress Helm Chart
