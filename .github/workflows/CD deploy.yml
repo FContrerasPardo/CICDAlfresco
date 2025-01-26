@@ -157,17 +157,17 @@ jobs:
       run: |
         # Describimos el SA para extraer la anotación con el ARN del rol
         SA_INFO=$(kubectl describe sa ebs-csi-controller-sa -n kube-system)
-        
-        # Buscamos la línea que contenga 'eks.amazonaws.com/role-arn:'
-        ROLE_ARN=$(echo "$SA_INFO" | grep 'eks.amazonaws.com/role-arn:' | awk '{print $2}')
-        
+
+        # Extraemos la línea relevante y eliminamos cualquier texto adicional antes del ARN
+        ROLE_ARN=$(echo "$SA_INFO" | grep 'eks.amazonaws.com/role-arn:' | sed -E 's/.*eks.amazonaws.com\/role-arn: //')
+
         if [ -z "$ROLE_ARN" ]; then
           echo "ERROR: No se encontró la anotación 'eks.amazonaws.com/role-arn' en el ServiceAccount ebs-csi-controller-sa."
           exit 1
         fi
-        
+
         echo "Encontrado ROLE_ARN=$ROLE_ARN"
-        
+
         # Guardamos en el entorno de GitHub Actions
         echo "ROLE_ARN=$ROLE_ARN" >> $GITHUB_ENV
     - name: Create EBS CSI Add-on

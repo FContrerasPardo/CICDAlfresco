@@ -183,19 +183,19 @@ aws configure
 
 1. **Crea las Variables Necesarias**:
 ```bash
-  export EKS_CLUSTER_NAME=alfresco-nuevo
+  export EKS_CLUSTER_NAME=alfresco-cluster
   export ECR_NAME=alfresco
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
   export AWS_REGION=us-east-1
-  export NAMESPACE=alfresconuevo
-  export EFSDNS=fs-0154620224778448e.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
-  export EFS_DNS_NAME=fs-0154620224778448e.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
-  export EFS_ID=fs-0154620224778448e
+  export NAMESPACE=alfresco1
+  export EFSDNS=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
+  export EFS_DNS_NAME=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
+  export EFS_ID=fs-020f8748176300dc0
   terraform. 
-  export N=alfresconuevo
+  export N=alfresco1
   export K=kube-system
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
