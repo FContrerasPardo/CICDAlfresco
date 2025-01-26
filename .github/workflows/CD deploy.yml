@@ -128,8 +128,11 @@ jobs:
       run: |
         kubectl get namespace ${NAMESPACE} || \
         kubectl create namespace ${NAMESPACE}
-        eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --region $REGION  --approve
         
+    - name: associate IAM OIDC provider
+      run: |
+        eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME  --approve
+    
     - name: Create IAM role for EBS CSI Driver
       run: |
         eksctl create iamserviceaccount \

@@ -611,7 +611,6 @@ eksctl create addon \
 eksctl create addon \
 --name aws-ebs-csi-driver \
 --cluster $EKS_CLUSTER_NAME \
---region $REGION \
 --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
 --force
 
