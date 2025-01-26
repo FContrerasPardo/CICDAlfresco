@@ -33,6 +33,10 @@ output "efs_mount_targets" {
     aws_efs_mount_target.alfresco_efs_target_private_2.id
   ]
 }
+output "aws_eks_node_group" {
+  value = aws_eks_node_group.alfresco_node_group.node_group_name
+}
+
 #
 #output "efs_storage_class_name" {
 #  value = kubernetes_storage_class.efs_storage_class.metadata[0].name

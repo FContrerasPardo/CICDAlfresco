@@ -110,11 +110,13 @@ jobs:
     - name: Print Outputs
       run: |
         echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}"
-        echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}"
+        echo "EFS_ID=${{steps.tf-outputs.outputs.efs_id}}"
         echo "EKS_CLUSTER_ENDPOINT=${{steps.tf-outputs.outputs.eks_cluster_endpoint}}"
+        echo "EKS_NODE_GROUP_NAME=${{steps.tf-outputs.outputs.aws_eks_node_group}}"
         echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}" >> $GITHUB_ENV
-        echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}" >> $GITHUB_ENV
+        echo "EFS_ID=${{steps.tf-outputs.outputs.efs_id}}" >> $GITHUB_ENV
         echo "EKS_CLUSTER_ENDPOINT=${{steps.tf-outputs.outputs.eks_cluster_endpoint}}" >> $GITHUB_ENV
+        echo "EKS_NODE_GROUP_NAME=${{steps.tf-outputs.outputs.aws_eks_node_group}}" >> $GITHUB_ENV
 
     - name: Get Kube config file
       id: getconfig
@@ -124,20 +126,24 @@ jobs:
     - name: Create namespace and associate IAM OIDC provider
       if: steps.getconfig.outcome == 'success'
       run: |
-        if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
-        eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --approve
+        kubectl get namespace ${NAMESPACE} || \
+        kubectl create namespace ${NAMESPACE}
         
+    - name: Create IAM role for EBS CSI Driver
+      run: |
+        eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve \
+        --role-only \
+        --role-name AmazonEKS_EBS_CSI_DriverRole
+
     - name: Setup EBS CSI Driver Just to have it if not exits
       run: |
-        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
-
-    - name: Delete EBS CSI Driver in case alrready exists to recreate it
-      run: |
-        eksctl delete addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION
-
-    - name: Recreate EBS CSI Driver
-      run: |
-        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
+        eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION || \
+        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
 
     - name: Add EFS CSI Driver Helm repo
       run: |
@@ -148,11 +154,12 @@ jobs:
       working-directory: ./files
       run: |
         envsubst < aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
-    
+        kubectl get pod -n kube-system -l "app.kubernetes.io/name=aws-efs-csi-driver,app.kubernetes.io/instance=aws-efs-csi-driver"
+
     - name: Create EFS StorageClass
       working-directory: ./files
       run: |
-        if ! kubectl get storageclass -n ${NAMESPACE} 2>/dev/null | grep -q "alfresco-efs-sc-${EFS_PV_NAME}"; then
+        if ! kubectl get storageclass -n ${NAMESPACE} 2>/dev/null | grep -q "alfresco-efs-sc"; then
           envsubst < alf-efs-storage-class.yaml | kubectl create -f -
         fi
       continue-on-error: true
@@ -160,17 +167,15 @@ jobs:
     - name: Create EFS Persistent Volume
       working-directory: ./files
       run: |
-        if ! kubectl get pv -n ${NAMESPACE} 2>/dev/null | grep -q "alf-content-pv-${EFS_PV_NAME}"; then
+          kubectl get pv -n ${NAMESPACE} | grep -q "alf-content-pv" || \
           envsubst < alf-content-persistence-volume.yaml | kubectl apply -f -
-        fi
       continue-on-error: true
       
     - name: Create EFS Persistent Volume Claim
       working-directory: ./files
       run: |
-        if ! kubectl get pvc -n ${NAMESPACE} 2>/dev/null | grep -q "alf-content-pvc-${EFS_PV_NAME}"; then
-          envsubst < alf-content-persistence-volume-claim.yaml | kubectl create -f -
-        fi
+        kubectl get pvc -n ${NAMESPACE} | grep -q "alf-content-pvc" || \
+        envsubst < alf-content-persistence-volume-claim.yaml | kubectl create -f -
       continue-on-error: true
 
     - name: Apply External DNS configuration
@@ -178,22 +183,58 @@ jobs:
       run: |
         kubectl apply -f external-dns.yaml
 
-    - name: Verify External DNS ConfigMap
+    - name: Verify External DNS
       run: |
         kubectl get configmap external-dns-config -n kube-system
-
-    - name: Verify External DNS Pods
-      run: |
+        kubectl describe configmap external-dns-config -n kube-system
         kubectl get pods -n kube-system -l app=external-dns
 
-    - name: Confirm External DNS application
-      run: |
-        echo "DNS externo aplicado correctamente."
+# esto no es necesario por que en terraform se esta asignando el rol con todo ya definido
+#    - name: Configure IAM Role for NodeGroup
+#        
+#      run: |
+#        # 1. Lista los Node Groups del clúster EKS
+#        NODEGROUP=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --query "nodegroups[0]" --output text)
+#        
+#        if [ "$NODEGROUP" == "None" ]; then
+#          echo "No se encontró un grupo de nodos para el clúster $EKS_CLUSTER_NAME"
+#          exit 1
+#        fi
+#    
+#        echo "NodeGroup encontrado: $NODEGROUP"
+#    
+#        # 2. Encuentra el nombre del rol asociado al NodeGroup
+#        NODE_ROLE=$(aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name $NODEGROUP --query "nodegroup.nodeRole" --output text)
+#    
+#        if [ -z "$NODE_ROLE" ]; then
+#          echo "No se encontró un rol asociado al NodeGroup $NODEGROUP"
+#          exit 1
+#        fi
+#    
+#        echo "Rol de IAM encontrado: $NODE_ROLE"
+#    
+#        # 3. Adjunta la política administrada AmazonRoute53FullAccess al rol
+#        aws iam attach-role-policy --role-name $(basename $NODE_ROLE) --policy-arn arn:aws:iam::aws:policy/AmazonRoute53FullAccess
+#    
+#        echo "Política AmazonRoute53FullAccess adjuntada al rol $NODE_ROLE"
+
 
     - name: Add Ingress NGINX Helm repo
       run: |
         helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
         helm repo update
+
+    # Install Ingress Controller Generico
+#    - name: Install Ingress Controller
+#      working-directory: ./files
+#      run: |
+#        helm upgrade --install ingress-nginx ingress-nginx \
+#        --repo https://kubernetes.github.io/ingress-nginx \
+#        --namespace ingress-nginx --create-namespace \
+#        --version 4.7.2 \
+#        --set controller.allowSnippetAnnotations=true
+#
+#        helm delete ingress-nginx -n ingress-nginx
 
     - name: Apply Ingress RBAC configuration
       working-directory: ./files
@@ -202,25 +243,31 @@ jobs:
 
     - name: Install Ingress Controller
       run: |
-        helm upgrade acs-ingress-$EKS_CLUSTER_NAME ingress-nginx/ingress-nginx --install --set controller.scope.enabled=true --set controller.scope.namespace=$NAMESPACE --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --set controller.ingressClassResource.name="$NAMESPACE-nginx" --set controller.ingressClassByName=true --atomic --namespace $NAMESPACE
-
+        helm upgrade acs-ingress ingress-nginx/ingress-nginx --install --set controller.scope.enabled=true --set controller.scope.namespace=$NAMESPACE --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --set controller.ingressClassResource.name="$NAMESPACE-nginx" --set controller.ingressClassByName=true --atomic --namespace $NAMESPACE
+        
     - name: Verify Ingress Controller pods
-      run: kubectl get pods -n ${NAMESPACE}
+      run: | 
+        kubectl get pods -n ${NAMESPACE}
+        kubectl get pods -n kube-system
 
-    - name: Verify kube-system pods
-      run: kubectl get pods -n kube-system
-    
     - name: Create Docker Registry Secret if not exists
       run: |
-        if ! kubectl get secret quay-registry-secret -n ${NAMESPACE} 2>/dev/null; then
-          kubectl create secret docker-registry quay-registry-secret \
-            --docker-server=quay.io \
-            --docker-username=$QUAY_USERNAME \
-            --docker-password=$QUAY_PASSWORD \
-            -n ${NAMESPACE}
-        else
-          echo "Secret quay-registry-secret already exists in namespace ${NAMESPACE}"
-        fi
+        kubectl get secret quay-registry-secret -n ${NAMESPACE} || \
+        kubectl create secret docker-registry quay-registry-secret \
+          --docker-server=quay.io \
+          --docker-username=$QUAY_USERNAME \
+          --docker-password=$QUAY_PASSWORD \
+          -n ${NAMESPACE}
+      # if ! kubectl get secret quay-registry-secret -n ${NAMESPACE} 2>/dev/null; then
+      #   kubectl create secret docker-registry quay-registry-secret \
+      #     --docker-server=quay.io \
+      #     --docker-username=$QUAY_USERNAME \
+      #     --docker-password=$QUAY_PASSWORD \
+      #     -n ${NAMESPACE}
+      # else
+      #   echo "Secret quay-registry-secret already exists in namespace ${NAMESPACE}"
+      # fi
+
 
     - name: Install Alfresco Content Services
       id : helm_install
@@ -289,7 +336,7 @@ jobs:
       run: |
         kubectl get pods --watch &
         KWPID=$!
-        kubectl wait --timeout=${{ env.HELM_INSTALL_TIMEOUT }} --all=true --for=condition=Ready pods
+        kubectl wait --timeout=5m --all=true --for=condition=Ready pods
         kill $KWPID
 
     - name: Debug cluster status after install

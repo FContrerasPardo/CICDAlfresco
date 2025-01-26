@@ -1,11 +1,11 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: alf-content-pvc-${EFS_PV_NAME}
+  name: alf-content-pvc
   namespace: ${NAMESPACE}
 spec:
-  storageClassName: alfresco-efs-sc-${EFS_PV_NAME}
-  volumeName: alf-content-pv-${EFS_PV_NAME}
+  storageClassName: alfresco-efs-sc
+  volumeName: alf-content-pv
   accessModes:
     - ReadWriteMany
   resources:

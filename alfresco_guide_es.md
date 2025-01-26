@@ -182,24 +182,27 @@ aws configure
 ## Configuración de Variables de Entorno
 
 1. **Crea las Variables Necesarias**:
-   ```bash
+```bash
   export EKS_CLUSTER_NAME=alfresco-cluster
   export ECR_NAME=alfresco
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+  
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
   export AWS_REGION=us-east-1
   export NAMESPACE=alfresco1
-  export EFSDNS=fs-0a9d941ecdcaa9bc1.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
+  export EFSDNS=fs-015bdcfa7ef338361.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
+  export EFS_DNS_NAME=fs-015bdcfa7ef338361.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
+  export EFS_ID=fs-015bdcfa7ef338361
+  terraform. 
   export N=alfresco1
+  export K=kube-system
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
   export EFS_PV_NAME=alfresco
-  
-
-
+  export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
 
 
   export EKS_CLUSTER_NAME=alfresco
@@ -220,7 +223,7 @@ aws configure
    EKS_CLUSTER_NAME="devopsalfresco"
    CLUSTER_ACCOUNT_INFO="${EKS_CLUSTER_NAME}-${AWS_ACCOUNT_ID}"
    echo "Cluster and Account Info: $CLUSTER_ACCOUNT_INFO"
-   ```
+```
 
 2. **Verifica las Variables**:
    ```bash
@@ -426,6 +429,9 @@ aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $REGION
 kubectl create namespace $NAMESPACE
 
 if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
+
+kubectl get namespace ${NAMESPACE} || \
+kubectl create namespace ${NAMESPACE}
 ```
 
 ### Validar el Archivo `kubeconfig`
@@ -512,7 +518,23 @@ echo $oidc_id
 ```
 
 ### Crear el Rol IAM
-Crea un rol IAM para el controlador del EBS CSI Driver:
+
+#### ***IMPORTANTE*** Borrar existentes iamserviceaccount y roles
+
+```bash
+        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole
+        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole
+        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole
+        kubectl get serviceaccount -n kube-system
+        kubectl delete serviceaccount ebs-csi-controller-sa -n kube-system
+        kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
+        eksctl delete iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME
+```
+#### Crea un rol IAM para el controlador del EBS CSI Driver:
 
 Acá estuvo el error tuve que eliminar la cuenta y volverla a crear:
 
@@ -526,9 +548,47 @@ eksctl create iamserviceaccount \
 --role-only \
 --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
 
+
+eksctl create iamserviceaccount --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME --namespace kube-system --cluster $EKS_CLUSTER_NAME --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve --role-only --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+
+Lo que use en la ultima prueba:
+
+eksctl create iamserviceaccount \
+--name ebs-csi-controller-sa \
+--namespace kube-system \
+--cluster $EKS_CLUSTER_NAME \
+--attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+--approve \
+--role-only \
+--role-name AmazonEKS_EBS_CSI_DriverRole
+
+
+#Eliminación Automatización:
+
+#        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+#        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+#        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+#        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+#        kubectl delete serviceaccount ebs-csi-controller-sa-$EKS_CLUSTER_NAME -n kube-system
+#        eksctl delete iamserviceaccount \
+#        --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME \
+#        --namespace kube-system \
+#        --cluster $EKS_CLUSTER_NAME
 ```
 
 ### Habilitar el Addon del EBS CSI Driver
+
+#### ***IMPORTANTE*** Borrar existentes addon
+
+```sh
+eksctl get addon  --cluster $EKS_CLUSTER_NAME 
+eksctl delete addon \
+--name aws-ebs-csi-driver \
+--cluster $EKS_CLUSTER_NAME \
+--region $REGION
+```
+
+#### Crear el addon
 ``` bash
 eksctl create addon \
 --name aws-ebs-csi-driver \
@@ -536,14 +596,18 @@ eksctl create addon \
 --region $REGION \
 --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME \
 --force
-```
-#### Eliminar el Addon en caso de ya existir
-```sh
-eksctl delete addon \
+
+eksctl create addon \
 --name aws-ebs-csi-driver \
 --cluster $EKS_CLUSTER_NAME \
---region $REGION
+--region $REGION \
+--service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
+--force
+
+
+eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
 ```
+
 
 
 aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.roleArn"
@@ -602,14 +666,15 @@ aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.roleArn"
 ## 1. Reglas de seguridad
 Se crea manualmente el EFS en la misma VPC del Cluster.
 
-Ver Word
+Aca es importante que en el VPC del cluster se ponga la regla de entrada del CDIR, con NFS como dice el tutorial, en teoria el EFS se monta en la misma vpc entonces aplica.
+Ver Word 
 
 Tutorial: se ejecutan estos comando para sacer las ids y los rangos de ip de la vpc del cluster:
 ```sh
- aws eks describe-cluster --name $EKS_CLUSTER_NAME  --query "cluster.resourcesVpcConfig.vpcId" --region $REGION --output text
 
- aws ec2 describe-vpcs --vpc-ids VPC-ID --query "Vpcs[].CidrBlock" --output text
- aws ec2 describe-vpcs --vpc-ids vpc-0e0561bf7757c4c31 --query "Vpcs[].CidrBlock" --region $REGION --output text
+#COMANDO UNIFICADO
+aws ec2 describe-vpcs --vpc-ids $(aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.resourcesVpcConfig.vpcId" --output text) --query "Vpcs[].CidrBlock" --output text
+
  
  # Ejecutar el primer comando y guardar el resultado en una variable de entorno
 export VPC_ID=$(aws eks describe-cluster --name "$EKS_CLUSTER_NAME" \
@@ -632,7 +697,10 @@ Agregar el CIDR al grupo de seguridad
 
 
 ## 2. Nuevo AWS EFS csi storage driver
-
+Primero borrar si ya existe:
+```bash
+helm uninstall aws-efs-csi-driver --namespace kube-system
+```
 ```bash
 # Crear archivo de configuración para el driver EFS CSI
 cat > files/aws-efs-values.yml <<EOT
@@ -658,7 +726,76 @@ envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aw
   --install \
   --namespace kube-system \
   -f -
+
+
+envsubst < aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
+
+
+
+
+    
 ```
+### ERRORES:
+
+#### ERROR del ID del File
+El error ocurre porque en la configuración del EFS estás utilizando el DNS del sistema de archivos (fs-015bdcfa7ef338361.efs.us-east-1.amazonaws.com) en lugar del ID del sistema de archivos (fs-015bdcfa7ef338361). El controlador EFS CSI requiere específicamente el ID del sistema de archivos en el campo fileSystemId.
+
+Proceso de diagnostico:
+```sh
+kubectl get pods -n $K
+efs-csi-controller-b999f9d4c-48ts6    3/3     Running   0          2m2s
+efs-csi-controller-b999f9d4c-bmdch    3/3     Running   0          2m2s
+
+#se valida cada nodo y en uno se encuentra:
+kubectl logs efs-csi-controller-b999f9d4c-bmdch -n $K 
+1 validation error detected: Value 'fs-015bdcfa7ef338361.efs.us-east-1.amazonaws.com' at 'fileSystemId' failed to satisfy constraint: Member must satisfy regular expression pattern: ^(arn:aws[-a-z]*:elasticfilesystem:[0-9a-z-:]+:file-system/fs-[0-9a-f]{8,40}|fs-[0-9a-f]{8,40})$
+```
+#### Error de politica
+igual que antes se busca en los logs del controlador y se encuentra:
+```sh
+E0126 02:28:02.272790       1 driver.go:109] GRPC error: rpc error: code = Unauthenticated desc = Access Denied. Please ensure you have the right AWS permissions: Access denied
+```
+El error Access Denied indica que el controlador EFS CSI no tiene los permisos necesarios en AWS para acceder y gestionar el sistema de archivos EFS. Esto generalmente ocurre debido a problemas con la IAM o la configuración del rol asociado.
+
+Verificar el rol asociado al controlador: Identifica el rol IAM que utiliza el controlador EFS CSI. Puedes buscar el ServiceAccount asociado al controlador en el namespace kube-system:
+```sh
+kubectl get serviceaccount -n kube-system
+```
+Busca el ServiceAccount relacionado con el EFS CSI (puede tener un nombre similar a efs-csi-controller-sa).
+
+Verificar los permisos del rol IAM: Encuentra el rol IAM asociado al ServiceAccount ejecutando:
+```sh
+aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text
+ng-56ea77ce
+aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name $NODEGROUP_NAME --query "nodegroup.nodeRole" --output text
+aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name ng-56ea77ce --query "nodegroup.nodeRole" --output text
+arn:aws:iam::706722401192:role/eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE
+```
+
+Luego, revisa las políticas adjuntas al rol:
+```sh
+aws iam list-attached-role-policies --role-name <ROLENAME>
+aws iam list-attached-role-policies --role-name eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE
+```
+Adjuntar la política requerida: Asegúrate de que el rol IAM tenga la política AmazonEFSCSIDriverPolicy adjunta. Si no está adjunta, ejecútala:
+```sh
+aws iam attach-role-policy --role-name <ROLENAME> --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
+aws iam attach-role-policy --role-name eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
+```
+
+NO FUE NECESARIO MODIFICAR EL SERVICE ACCOUNT SOLO CON LA POLITICA FUNCIONÓ EL EFS.
+Actualizar el ServiceAccount: Asegúrate de que el ServiceAccount de Kubernetes esté asociado al rol correcto. Si no lo está, puedes recrearlo con el siguiente comando:
+```sh
+eksctl create iamserviceaccount \
+--name efs-csi-controller-sa \
+--namespace kube-system \
+--cluster $EKS_CLUSTER_NAME \
+--attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonElasticFileSystemClientPolicy \
+--approve \
+--role-only \
+--role-name AmazonEKS_EFS_CSI_DriverRole
+```
+
 
 ## 2. NFS Provisioner (obsoleto)
 Deploy an NFS Client Provisioner with Helm using the following commands (replace EFS-DNS-NAME with the string FILE-SYSTEM-ID.efs.AWS-REGION.amazonaws.com where the FILE-SYSTEM-ID is the ID retrieved in step 1 and AWS-REGION is the region you’re using, e.g. fs-72f5e4f1.efs.us-east-1.amazonaws.com):
@@ -667,6 +804,7 @@ la version de https://kubernetes-charts.storage.googleapis.com, esta obsoleta, p
 
 ```sh
 helm repo add stable https://charts.helm.sh.stable
+
 ```
 
 Validar:
@@ -677,14 +815,47 @@ helm list -n kube-system
 
 ajustado con el id del EFS:
 ```sh
- helm repo add stable https://charts.helm.sh.stable
- helm install alfresco-nfs-provisioner stable/nfs-client-provisioner --set nfs.server="EFS-DNS-NAME" --set nfs.path="/" --set storageClass.name="nfs-client" --set storageClass.archiveOnDelete=false -n kube-system
- 
-  helm install alfresco-nfs-provisioner stable/nfs-client-provisioner --set nfs.server="fs-02feb374c2bdf4c2b.efs.us-east-1.amazonaws.com" --set nfs.path="/" --set storageClass.name="nfs-client" --set storageClass.archiveOnDelete=false -n kube-system
-```
+helm install alfresco-nfs-provisioner stable/nfs-client-provisioner --set nfs.server="$EFS_DNS_NAME" --set nfs.path="/" --set storageClass.name="nfs-client" --set storageClass.archiveOnDelete=false -n kube-system
 
+helm uninstall alfresco-nfs-provisioner -n kube-system
+
+```
+Importante este controlador arroja el error:
+
+kubectl get pods -n $K
+alfresco-nfs-provisioner-nfs-client-provisioner-8475884887zssdh   1/1     Running   0          11m
+
+kubectl logs alfresco-nfs-provisioner-nfs-client-provisioner-8475884887zssdh -n $K -f 
+E0126 02:06:40.459050       1 controller.go:1004] provision "alfresco1/data-acs-postgresql-acs-0" class "nfs-client": unexpected error getting claim reference: selfLink was empty, can't make reference
+
+El error unexpected error getting claim reference: selfLink was empty, can't make reference ocurre debido a un cambio en las versiones recientes de Kubernetes donde selfLink ya no está disponible por defecto. Esto afecta a algunos controladores o provisionadores que dependen de selfLink para operar correctamente. 
 
 ## 3. EFS montade con YAML
+
+
+### **IMPORTANTE** Eliminación de recursos existentes mal configurados
+
+Cuando se crea por primera vez el entorno y falla el no borra los pvc ni la configuración entonces de ahi en adelante siempre va a existir un error, es nececario eliminar manualmente los volumenes:
+
+Este Retorna los pvs antes de su creación:
+```sh
+kubectl get pvc -n $N
+NAME                                                  STATUS    VOLUME           CAPACITY   ACCESS MODES   STORAGECLASS      VOLUMEATTRIBUTESCLASS   AGE
+alf-content-pvc                                       Bound     alf-content-pv   1Gi        RWX            alfresco-efs-sc   <unset>                 6h
+data-acs-postgresql-acs-0                             Pending                                                                <unset>                 6h43m
+elasticsearch-aas-master-elasticsearch-aas-master-0   Pending                                                                <unset>                 6h43m
+elasticsearch-master-elasticsearch-master-0           Pending                                                                <unset>                 6h43m
+```
+
+Si existen se procede a borrarlos:
+```sh
+kubectl delete pvc data-acs-postgresql-acs-0 -n $N
+kubectl delete pvc elasticsearch-aas-master-elasticsearch-aas-master-0 -n $N
+kubectl delete pvc elasticsearch-master-elasticsearch-master-0 -n $N
+kubectl get pvc -n $N
+```
+
+### Crear los nuevos volumenes para acs
 Esto se hace por que se detecta que no monta bien los volumenes
 Crear el PVC el PV, el claim y el storage class para el namespace: 
 Se modifican los archivos 
@@ -698,8 +869,6 @@ kubectl delete -f files/alf-content-persistence-volume.yaml
 kubectl delete -f files/alf-content-persistence-volume-claim.yaml
 
 kubectl delete -f files/alf-content-persistence-volume.yaml
-
-
 ```
 
 **IMPORTANTE**
@@ -734,6 +903,11 @@ Luego se le agrega al comando del helm este comando paa que tome el claim que ac
 --set alfresco-repository.persistence.enabled=true \
 ```
 
+### ERROREs
+
+####  Warning  FailedScheduling  4m3s  default-scheduler  0/3 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+
+Este error sucede por que los PVC no pueden montar las PV
 
 
 # Prepare the cluster for Content Services DNS e Ingress
@@ -761,11 +935,19 @@ kubectl apply -f ~/environment/CICDAlfresco/files/external-dns.yaml -n kube-syst
 
 Lista los grupos de nodos para tu clúster y toma nota del nombre del grupo de nodos YOUR-NODEGROUP (reemplaza YOUR-CLUSTER-NAME con el nombre que le diste a tu clúster).
 ```sh
-aws eks list-nodegroups --cluster-name YOUR-CLUSTER-NAME
+aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME
 ```
 Encuentra el nombre del rol utilizado por los nodos ejecutando el siguiente comando (reemplaza YOUR-CLUSTER-NAME con el nombre que le diste a tu clúster y YOUR-NODEGROUP con el nombre de tu grupo de nodos):
 ```sh
-aws eks describe-nodegroup --cluster-name YOUR-CLUSTER-NAME --nodegroup-name YOUR-NODEGROUP --query "nodegroup.nodeRole" --output text
+aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name YOUR-NODEGROUP --query "nodegroup.nodeRole" --output text
+{
+    "nodegroups": [
+        "ng-56ea77ce"
+    ]
+}
+aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name ng-56ea77ce --query "nodegroup.nodeRole" --output text
+
+
 ```
 En la consola de IAM, encuentra el rol descubierto en el paso anterior y adjunta la política administrada AmazonRoute53FullAccess como se muestra en la captura de pantalla a continuación:
 
@@ -855,7 +1037,27 @@ se corrige cambiando la versión dentro del archivo:
 
 Primero se tiene que crear el dominio y el route 53 ver documento word
 
-### Paso 1: Crear el Cluster Rol para el ingress en el namespace
+### OPCION 1 - Crear un Ingress Generico (incompleto)
+https://github.com/Alfresco/acs-deployment/blob/master/docs/helm/ingress-nginx.md
+
+```bash
+helm upgrade --install ingress-nginx ingress-nginx \
+--repo https://kubernetes.github.io/ingress-nginx \
+--namespace ingress-nginx --create-namespace \
+--version 4.7.2 \
+--set controller.allowSnippetAnnotations=true
+
+kubectl wait --namespace ingress-nginx \
+--for=condition=ready pod \
+--selector=app.kubernetes.io/component=controller \
+--timeout=90s
+
+kubectl get pods --namespace=ingress-nginx
+```
+
+### Opcion 2 - Crear un Ingress Personalizado
+
+#### Paso 1: Crear el Cluster Rol para el ingress en el namespace
 
 ```sh
 # Manual
@@ -870,7 +1072,8 @@ esto importante para que pueda registrar el nuevo acs-ingress:
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 ```
-### Paso 2: crear el Ingress:
+
+#### Paso 2: crear el Ingress:
 
 ```sh
  helm install acs-ingress-$EKS_CLUSTER_NAME ingress-nginx/ingress-nginx \
@@ -889,6 +1092,8 @@ helm repo update
   --set controller.ingressClassByName=true \
   --atomic --namespace $NAMESPACE
 
+
+helm delete acs-ingress -n $NAMESPACE
  ```
 Este se demora en generar la IP del balanceador:
 kubectl get service --namespace alfresco acs-ingress-ingress-nginx-controller --output wide --watch
@@ -1004,6 +1209,8 @@ kubectl create secret docker-registry quay-registry-secret --docker-server=quay.
 
 Comando actualizado para usar el helm local
 ```sh
+helm uninstall acs -n $N
+
 helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set externalPort="443" \
 --set externalProtocol="https" \
@@ -1011,7 +1218,7 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set persistence.enabled=true \
 --set persistence.storageClass.enabled=true \
 --set persistence.storageClass.name="nfs-client" \
---set alfresco-repository.persistence.existingClaim="alf-content-pvc-${NAMESPACE}" \
+--set alfresco-repository.persistence.existingClaim="alf-content-pvc" \
 --set alfresco-repository.persistence.enabled=true \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
 --set alfresco-sync-service.enabled=false \
@@ -1188,7 +1395,10 @@ Para conectarse a un pod específico y ejecutar comandos dentro de él, siga est
 
 1. **Ejecutar el comando `kubectl exec`**:
 ```bash
-kubectl exec -it acs-alfresco-repository-8c7688574-tfbvj -n alfresco -- /bin/bash
+kubectl exec -it acs-alfresco-repository-db4947df-drjjm -n $NAMESPACE -- /bin/bash
+
+kubectl exec -it acs-postgresql-acs-0 -n $NAMESPACE -- /bin/bash
+
 ```
 Este comando abre una sesión interactiva de bash en el pod `acs-alfresco-repository-8c7688574-tfbvj` en el namespace `alfresco`.
 
@@ -1386,7 +1596,7 @@ nslookup alfresco.mydomain.com
 
 ### Limpieza y Reinstalación
 ```bash
-helm uninstall acs --namespace alfresco
+helm uninstall acs --namespace $NAMESPACE
 kubectl delete pvc --all -n alfresco
 kubectl delete configmap --all -n alfresco
 kubectl delete secret --all -n alfresco

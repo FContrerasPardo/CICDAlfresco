@@ -93,7 +93,26 @@ jobs:
     - name: Uninstall ACS Helm Chart
       run: helm uninstall acs --namespace $NAMESPACE  
     - name: Uninstall ACS Ingress Helm Chart
-      run: helm uninstall acs-ingress-$EKS_CLUSTER_NAME -n $NAMESPACE  
+      run: helm uninstall acs-ingress -n $NAMESPACE  
+           helm delete acs-ingress -n $NAMESPACE
+
+       
+    - name: Uninstall EBS Service account and Role
+      run: |
+        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole
+        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole
+        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole
+        kubectl get serviceaccount -n kube-system
+        kubectl delete serviceaccount ebs-csi-controller-sa -n kube-system
+        kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
+        eksctl delete iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME
+
+        
+      
     - name: Delete all PVCs
       run: kubectl delete pvc --all -n $NAMESPACE  
     - name: Delete all ConfigMaps
