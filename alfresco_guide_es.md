@@ -712,7 +712,7 @@ storageClasses:
       directoryPerms: "700"
       uid: "33000"
       gid: "1000"
-      fileSystemId: "${EFSDNS}"
+      fileSystemId: "${EFS_ID}"
       provisioningMode: "efs-ap"
     reclaimPolicy: Retain
     volumeBindingMode: Immediate
