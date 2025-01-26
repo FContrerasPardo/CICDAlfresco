@@ -1,0 +1,21 @@
+dependencies:
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 13.4.0
+- name: keycloakx
+  repository: https://codecentric.github.io/helm-charts
+  version: 6.0.0
+- name: alfresco-repository
+  repository: https://alfresco.github.io/alfresco-helm-charts/
+  version: 0.8.0
+- name: activemq
+  repository: https://alfresco.github.io/alfresco-helm-charts/
+  version: 3.6.0
+- name: alfresco-share
+  repository: https://alfresco.github.io/alfresco-helm-charts/
+  version: 1.2.0
+- name: alfresco-adf-app
+  repository: https://alfresco.github.io/alfresco-helm-charts/
+  version: 0.2.0
+digest: sha256:909b624343eb41bf268bc97247ddf366c08abc51265d98556c2cd58e24a44685
+generated: "2025-01-15T09:56:36.775139+01:00"

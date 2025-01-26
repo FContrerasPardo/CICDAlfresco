@@ -1,0 +1,21 @@
+---
+# General rule here is to skip charts dependencies for checkov analysis
+alfresco-search:
+  alfresco-insight-zeppelin:
+    insightzeppelin:
+      enabled: true
+alfresco-search-enterprise:
+  enabled: true
+  elasticsearch:
+    enabled: false
+alfresco-digital-workspace:
+  enabled: false
+alfresco-admin-app:
+  enabled: false
+postgresql:
+  enabled: false
+alfresco-sync-service:
+  postgresql:
+    enabled: false
+database:
+  external: true

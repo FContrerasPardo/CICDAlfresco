@@ -1,0 +1,10 @@
+---
+global:
+  search:
+    sharedSecret: dummy
+activemq:
+  enabled: false
+messageBroker:
+  url: failover:(nio://somebroker:61616)
+  user: alfresco
+  password: alfresco

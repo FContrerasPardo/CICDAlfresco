@@ -1,0 +1,101 @@
+---
+alfresco-repository:
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "1024Mi"
+    limits:
+      cpu: "2"
+      memory: "1560Mi"
+share:
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "512Mi"
+  readinessProbe:
+    initialDelaySeconds: 60
+    timeoutSeconds: 45
+  livenessProbe:
+    initialDelaySeconds: 60
+    timeoutSeconds: 45
+alfresco-search:
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "1280Mi"
+alfresco-transform-service:
+  pdfrenderer:
+    livenessProbe:
+      initialDelaySeconds: 30
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "512Mi"
+  imagemagick:
+    livenessProbe:
+      initialDelaySeconds: 30
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+  libreoffice:
+    livenessProbe:
+      initialDelaySeconds: 30
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "1024Mi"
+  tika:
+    livenessProbe:
+      initialDelaySeconds: 30
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+  transformmisc:
+    livenessProbe:
+      initialDelaySeconds: 30
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "512Mi"
+# Disable features
+postgresql:
+  primary:
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+alfresco-audit-storage:
+  enabled: false
+dtas:
+  enabled: true
+  config:
+    assertions:
+      acs:
+        edition: Community
+      adw: null

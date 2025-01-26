@@ -191,9 +191,9 @@ aws configure
   export REGION=us-east-1
   export AWS_REGION=us-east-1
   export NAMESPACE=alfresco1
-  export EFSDNS=fs-015bdcfa7ef338361.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
-  export EFS_DNS_NAME=fs-015bdcfa7ef338361.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
-  export EFS_ID=fs-015bdcfa7ef338361
+  export EFSDNS=fs-0f4a4381a8b3f4daa.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
+  export EFS_DNS_NAME=fs-0f4a4381a8b3f4daa.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
+  export EFS_ID=fs-0f4a4381a8b3f4daa
   terraform. 
   export N=alfresco1
   export K=kube-system
@@ -549,6 +549,16 @@ eksctl create iamserviceaccount \
 --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
 
 
+eksctl create iamserviceaccount \
+--name ebs-csi-controller-sa \
+--namespace kube-system \
+--cluster $EKS_CLUSTER_NAME \
+--attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+--approve \
+--role-only \
+--role-name AmazonEKS_EBS_CSI_DriverRole
+
+
 eksctl create iamserviceaccount --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME --namespace kube-system --cluster $EKS_CLUSTER_NAME --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve --role-only --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
 
 Lo que use en la ultima prueba:
@@ -586,6 +596,7 @@ eksctl delete addon \
 --name aws-ebs-csi-driver \
 --cluster $EKS_CLUSTER_NAME \
 --region $REGION
+
 ```
 
 #### Crear el addon
@@ -768,14 +779,16 @@ Verificar los permisos del rol IAM: Encuentra el rol IAM asociado al ServiceAcco
 aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text
 ng-56ea77ce
 aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name $NODEGROUP_NAME --query "nodegroup.nodeRole" --output text
-aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name ng-56ea77ce --query "nodegroup.nodeRole" --output text
+aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name alfresco-node-group --query "nodegroup.nodeRole" --output text
 arn:aws:iam::706722401192:role/eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE
+
+arn:aws:iam::706722401192:role/eksctl-alfresco-nodegroup
 ```
 
 Luego, revisa las políticas adjuntas al rol:
 ```sh
 aws iam list-attached-role-policies --role-name <ROLENAME>
-aws iam list-attached-role-policies --role-name eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE
+aws iam list-attached-role-policies --role-name eksctl-alfresco-nodegroup
 ```
 Adjuntar la política requerida: Asegúrate de que el rol IAM tenga la política AmazonEFSCSIDriverPolicy adjunta. Si no está adjunta, ejecútala:
 ```sh
@@ -1092,6 +1105,21 @@ helm repo update
   --set controller.ingressClassByName=true \
   --atomic --namespace $NAMESPACE
 
+ helm install acs-ingress ingress-nginx/ingress-nginx \
+  --set controller.scope.enabled=true \
+  --set controller.scope.namespace=$NAMESPACE \
+  --set rbac.create=true \
+  --set controller.config."proxy-body-size"="100m" \
+  --set controller.service.targetPorts.https=80 \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" \
+  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN_NAME}" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
+  --set controller.publishService.enabled=true \
+  --set controller.ingressClassResource.name="$NAMESPACE-nginx" \
+  --set controller.ingressClassByName=true \
+  --atomic --namespace $NAMESPACE
 
 helm delete acs-ingress -n $NAMESPACE
  ```
@@ -1211,6 +1239,14 @@ Comando actualizado para usar el helm local
 ```sh
 helm uninstall acs -n $N
 
+kubectl delete pvc data-acs-postgresql-acs-0  -n $N
+kubectl delete pvc elasticsearch-aas-master-elasticsearch-aas-master-0 -n $N
+kubectl delete pvc elasticsearch-master-elasticsearch-master-0 -n $N
+kubectl delete pvc filestore-default-pvc -n $N
+kubectl delete pvc activemq-default-pvc -n $N
+
+kubectl delete pvc alf-content-pvc -n $N
+
 helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set externalPort="443" \
 --set externalProtocol="https" \
@@ -1219,7 +1255,67 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set persistence.storageClass.enabled=true \
 --set persistence.storageClass.name="nfs-client" \
 --set alfresco-repository.persistence.existingClaim="alf-content-pvc" \
+--set postgresql.primary.persistence.existingClaim="alf-content-pvc" \
+--set activemq.persistence.existingClaim="alf-content-pvc" \
+--set alfresco-transform-service.filestore.persistence.existingClaim="alf-content-pvc" \
+--set postgresql.volumePermissions.enabled=true \
 --set alfresco-repository.persistence.enabled=true \
+--set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+--set alfresco-sync-service.enabled=false \
+--set postgresql-sync.enabled=false \
+--set alfresco-transform-service.transformrouter.replicaCount="1" \
+--set alfresco-transform-service.pdfrenderer.replicaCount="1" \
+--set alfresco-transform-service.imagemagick.replicaCount="1" \
+--set alfresco-transform-service.libreoffice.replicaCount="1" \
+--set alfresco-transform-service.tika.replicaCount="1" \
+--set alfresco-transform-service.transformmisc.replicaCount="1" \
+--set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.tika.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" \
+--set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" \
+--set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" \
+--set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" \
+--set alfresco-transform-service.tika.resources.limits.cpu="250m" \
+--set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" \
+--set alfresco-transform-service.filestore.resources.limits.cpu="250m" \
+--set postgresql.primary.resources.requests.cpu="250m" \
+--set postgresql.primary.resources.limits.cpu="500m" \
+--set postgresql.primary.resources.limits.memory="6Gi" \
+--set alfresco-share.resources.limits.cpu="250m" \
+--set alfresco-search-enterprise.resources.requests.cpu="250m" \
+--set alfresco-search-enterprise.resources.limits.cpu="250m" \
+--set alfresco-repository.resources.requests.cpu="500m" \
+--set alfresco-repository.resources.limits.cpu="500m" \
+--set alfresco-repository.readinessProbe.periodSeconds="200" \
+--set alfresco-repository.livenessProbe.periodSeconds="200" \
+--set alfresco-repository.startupProbe.periodSeconds="200" \
+--set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" \
+--set alfresco-share.livenessProbe.periodSeconds="200" \
+--set alfresco-share.readinessProbe.periodSeconds="200" \
+--set alfresco-search-enterprise.reindexing.enabled=false \
+--timeout 20m0s \
+--namespace=$NAMESPACE
+
+helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
+--set externalPort="443" \
+--set externalProtocol="https" \
+--set externalHost="acs.${DOMAIN}" \
+--set persistence.enabled=false \
+--set persistence.storageClass.enabled=false \
+--set alfresco-repository.persistence.enabled=false \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
 --set alfresco-sync-service.enabled=false \
 --set postgresql-sync.enabled=false \

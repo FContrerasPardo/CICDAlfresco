@@ -1,0 +1,198 @@
+---
+alfresco-repository:
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "1024Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  # https://alfresco.atlassian.net/browse/ACS-6670
+  replicaCount: 1
+  persistence:
+    accessModes:
+      - ReadWriteOnce
+  startupProbe:
+    failureThreshold: 20
+share:
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "512Mi"
+  readinessProbe:
+    initialDelaySeconds: 60
+    timeoutSeconds: 45
+  livenessProbe:
+    initialDelaySeconds: 60
+    timeoutSeconds: 45
+alfresco-search:
+  resources:
+    requests:
+      cpu: "0.25"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "1280Mi"
+elasticsearch:
+  master:
+    resources:
+      requests:
+        cpu: "0.25"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+  kibana:
+    resources:
+      requests:
+        cpu: "0.25"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+alfresco-search-enterprise:
+  reindexing:
+    hookExecution: false
+  resources:
+    requests:
+      cpu: "0.1"
+      memory: "128Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+alfresco-transform-service:
+  pdfrenderer:
+    livenessProbe:
+      initialDelaySeconds: 90
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "512Mi"
+    replicaCount: 1
+  imagemagick:
+    livenessProbe:
+      initialDelaySeconds: 90
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+    replicaCount: 1
+  libreoffice:
+    livenessProbe:
+      initialDelaySeconds: 90
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "1024Mi"
+    replicaCount: 1
+  tika:
+    livenessProbe:
+      initialDelaySeconds: 30
+    resources:
+      requests:
+        cpu: "0.25"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+    replicaCount: 1
+  transformmisc:
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 60
+      timeoutSeconds: 15
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "256Mi"
+      limits:
+        cpu: "2"
+        memory: "512Mi"
+    replicaCount: 1
+  transformrouter:
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: "2"
+        memory: "800Mi"
+    readinessProbe:
+      initialDelaySeconds: 40
+      timeoutSeconds: 20
+    livenessProbe:
+      initialDelaySeconds: 40
+      timeoutSeconds: 20
+postgresql:
+  primary:
+    resources:
+      requests:
+        cpu: "0.5"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+postgresql-sync: &postgresql-sync
+  primary:
+    resources:
+      requests:
+        cpu: "0.01"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "1Gi"
+alfresco-sync-service:
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "1Gi"
+  postgresql: *postgresql-sync
+activemq:
+  resources:
+    requests:
+      cpu: "0.1"
+      memory: "512Mi"
+alfresco-digital-workspace:
+  resources:
+    requests:
+      cpu: "0.01"
+alfresco-control-center:
+  resources:
+    requests:
+      cpu: "0.01"
+alfresco-ai-transformer:
+  enabled: true
+  replicaCount: 1
+  aws:
+    accessKeyId: AAAAAAAAAAAAAAAAA
+    secretAccessKey: ZZZZZZZZZZZZZZZZZ
+    s3Bucket: somebucket
+    region: us-east-1
+    comprehendRoleARN: arn:aws:iam::000000000000:user/comprehend
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "512Mi"
+  livenessProbe:
+    initialDelaySeconds: 120
+alfresco-audit-storage:
+  resources:
+    requests:
+      cpu: "0.01"
+      memory: "256Mi"
+dtas:
+  enabled: true
+# In case of any changes, please ensure that the values are also updated in `docs/helm/values/local-dev_values.yaml`

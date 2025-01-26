@@ -1,0 +1,66 @@
+---
+name: Docker Compose (Enterprise)
+
+on:
+  pull_request:
+    branches:
+      - master
+      - release/**
+      - next/**
+    paths:
+      - "! docker-compose/community-docker-compose.yml"
+      - docker-compose/**
+      - test/postman/docker-compose/**
+      - .github/workflows/docker-compose-enterprise.yml
+  push:
+    branches:
+      - master
+      - release/**
+
+concurrency:
+  group: compose-ent-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build_vars:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_json: ${{ steps.eval.outputs.matrix_json }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Evaluate Matrix
+        id: eval
+        run: >-
+          echo "matrix_json=$(
+            ls -1 docker-compose |
+              grep -P '^\d+' |
+              jq -Rn '{"compose_file": [inputs]}' |
+              jq -c '.compose_file += ["compose.yaml"]' |
+              jq -c '.compose_file += ["pre-release-compose.yaml"]'
+          )" >> $GITHUB_OUTPUT
+
+  compose_enterprise:
+    name: Docker Compose enterprise
+    needs: build_vars
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.build_vars.outputs.matrix_json) }}
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push'
+      || (
+        ! github.event.pull_request.head.repo.fork
+        && github.event.pull_request.head.user.login == 'Alfresco'
+      )
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Verify docker-compose
+        uses: >-
+          Alfresco/alfresco-build-tools/.github/actions/dbp-charts/verify-compose@v8.9.0
+        timeout-minutes: 10
+        with:
+          postman_path: test/postman/docker-compose
+          postman_json: acs-test-docker-compose-collection.json
+          compose_file_path: docker-compose/${{ matrix.compose_file }}
+          quay_username: ${{ secrets.QUAY_USERNAME }}
+          quay_password: ${{ secrets.QUAY_PASSWORD }}

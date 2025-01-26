@@ -1,0 +1,41 @@
+---
+name: Pre-commit (Helm)
+
+on:
+  pull_request:
+    branches:
+      - master
+      - release/**
+      - next/**
+    paths:
+      - helm/**
+      - test/postman/helm/**
+      - .github/workflows/pre-commit-helm.yml
+      - "**.md"
+      - .pre-commit-config.yaml
+  push:
+    branches:
+      - master
+      - release/**
+
+env:
+  # https://pre-commit.com/#temporarily-disabling-hooks
+  SKIP: docker-compose-check
+
+jobs:
+  pre_commit:
+    name: Run pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # 4.2.2
+      - uses: Alfresco/alfresco-build-tools/.github/actions/setup-helm-docs@v8.9.0
+      - name: Add dependency chart repos
+        run: |
+          for repo in $(yq eval-all \
+          '. as $item ireduce ({}; . *+ $item ) | [.dependencies[].repository | select(. == "http*")] | unique | .[]' \
+          ./helm/*/Chart.yaml); do repo_name=$(echo "$repo" | awk -F/ '{print $3}')
+            helm repo add "$repo_name" "$repo"
+          done
+
+      - name: Run  Pre-commit hooks
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
