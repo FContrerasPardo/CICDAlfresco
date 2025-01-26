@@ -183,19 +183,19 @@ aws configure
 
 1. **Crea las Variables Necesarias**:
 ```bash
-  export EKS_CLUSTER_NAME=alfresco-cluster
+  export EKS_CLUSTER_NAME=alfresco-nuevo
   export ECR_NAME=alfresco
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
   export AWS_REGION=us-east-1
-  export NAMESPACE=alfresco1
-  export EFSDNS=fs-0f4a4381a8b3f4daa.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
-  export EFS_DNS_NAME=fs-0f4a4381a8b3f4daa.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
-  export EFS_ID=fs-0f4a4381a8b3f4daa
+  export NAMESPACE=alfresconuevo
+  export EFSDNS=fs-0154620224778448e.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
+  export EFS_DNS_NAME=fs-0154620224778448e.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
+  export EFS_ID=fs-0154620224778448e
   terraform. 
-  export N=alfresco1
+  export N=alfresconuevo
   export K=kube-system
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
@@ -203,6 +203,7 @@ aws configure
   export DOMAIN=tfmfc.com
   export EFS_PV_NAME=alfresco
   export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
+  export ACS_HOSTNAME=acs.$DOMAIN
 
 
   export EKS_CLUSTER_NAME=alfrescom
@@ -417,22 +418,13 @@ terraform apply -auto-approve
 
 
 
-## Registrar el Cluster
+# Registrar el Cluster
 registrar el cluster>
 ```bash
 aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $REGION 
 ```
 
-## Crear el Namespace
 
-```bash
-kubectl create namespace $NAMESPACE
-
-if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
-
-kubectl get namespace ${NAMESPACE} || \
-kubectl create namespace ${NAMESPACE}
-```
 
 ### Validar el Archivo `kubeconfig`
 ```bash
@@ -499,33 +491,25 @@ Reemplaza `<CLUSTER_ENDPOINT>` con el endpoint obtenido en el paso anterior. Si 
 # EBS: Configuración del Clúster EKS Addons EBS
 
 ### OIDC Provider
+#### CREAR EL OIDC PROVIDER
 Siguiendo: https://github.com/Alfresco/acs-deployment/blob/master/docs/helm/eks-deployment.md
 Luego: https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html -> https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html
 
-Enable the OIDC provider that is necessary to install further EKS addons later:
+**IMPORTANTE** ANTES DECONTINUAR VERIFICAR Y/O BORRAR EXISTENTES
 
 ```bash
 eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --region $REGION  --approve
-eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME   --approve
+eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --approve
 
 aws eks describe-cluster --name $EKS_CLUSTER_NAME --region $REGION \
   --query "cluster.identity.oidc.issuer" --output text
 
-  aws iam delete-open-id-connect-provider --open-id-connect-provider-arn  
-```
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/3A7A114B695B7897FE9B95F49031015D
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/57936F72116832D76A3E21F551A44595
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/68F203A6E35587F87F68B1C67699C1B0
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/796928A54C89F1B3C58AF51F4CE3FD44
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/8081B2764D5C3AF639A015F6157F2D75
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/8725B60DED2FD5CFEBCC456C6151C93F
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/899F874C6F5AB16182AA0D0FA18360D0
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/B47BA91C19166CFF3A4AA7F3485F53F6
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/F259AE3711912BC4B5291E84BE432643
 ```
 
 ```
 
+```
+#### Eliminar el OIDC provider
 https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html
 Determine the OIDC issuer ID for your cluster.
 Retrieve your cluster’s OIDC issuer ID and store it in a variable. Replace my-cluster with your own value.
@@ -533,10 +517,91 @@ Retrieve your cluster’s OIDC issuer ID and store it in a variable. Replace my-
 oidc_id=$(aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f 5)
 echo $oidc_id
 
+aws iam list-open-id-connect-providers
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/FCCFF924C2EFF5D341B2C20144A26EE8
+
+CLUSTER_ISSUER=$(aws eks describe-cluster \
+        --name $EKS_CLUSTER_NAME \
+        --query "cluster.identity.oidc.issuer" \
+        --output text | cut -d '/' -f 5 2>/dev/null || true)
+
+if [ -z "$CLUSTER_ISSUER" ]; then
+        echo "No se pudo obtener el issuer. ¿Quizás el clúster ya no existe?"
+        echo "OIDC_ARN=" >> $GITHUB_ENV
+        exit 0
+        fi
+
+# Formamos el ARN completo
+PROVIDER_ARN="arn:aws:iam::$AWS_ACCOUNT_ID:oidc-provider/oidc.eks.$REGION.amazonaws.com/id/$CLUSTER_ISSUER"
+
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn $PROVIDER_ARN
+
+arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/3A66FD1E5100E8C4F05269C6ED7B32B5
+arn:aws:iam:::oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/3A66FD1E5100E8C4F05269C6ED7B32B5
 ```
+#### Errores
 
+  - Se encuentra un error al levantar los volumenes que dice que no tiene acceso el ebs a crear pv, esto pasa por varios factores, el primero la versión del cluster, en la versión 1.31 el StorageClass que antes venia por defecto en Gp2 ya no esta por defecto, esto puede contriubir al error, el segundo es el Servicce accoun que anteriromente solo se creaba el rol pero al parecer era necesario crear el service account o actualizarlo para que no generara problema de incopatibilidad con el rol y generara el problema de acceso y el tercero, propiamente:
+
+##### 1. Problemas con EBS CSI (Error: AccessDenied / sts:AssumeRoleWithWebIdentity)
+
+Causa
+El driver EBS CSI (o EFS CSI) no podía asumir el rol de IAM, resultando en errores de AccessDenied o Not authorized to perform sts:AssumeRoleWithWebIdentity. Esto sucede cuando falta la configuración adecuada de IRSA (IAM Roles for Service Accounts) o la trust policy no coincide con el ServiceAccount.
+
+Solución
+
+Habilitar OIDC (eksctl utils associate-iam-oidc-provider), si aún no se ha hecho.
+Crear un rol IAM con la política necesaria (AmazonEBSCSIDriverPolicy o la de EFS) y trust policy que permita sts:AssumeRoleWithWebIdentity para el ServiceAccount del CSI.
+Anotar el ServiceAccount (eks.amazonaws.com/role-arn: arn:aws:iam::...) para que el pod use ese rol (IRSA).
+Comprobar que el EBS/EFS CSI Driver tenga el ServiceAccount con el ARN del rol configurado.
+##### 2. In-tree vs CSI Driver
+Causa
+Aunque se instalaba el EBS CSI Driver, los volúmenes seguían aprovisionándose con el driver “in-tree” (kubernetes.io/aws-ebs), sin usar IRSA. Por eso, no se notaba diferencia al crear o no la IAMServiceAccount.
+
+Solución
+
+Si un chart (como Alfresco) no permite especificar storageClassName en algunos subcomponentes, esos PVC terminan usando el StorageClass por defecto.
+Por defecto, EKS trae un gp2 in-tree como SC. Para usar el driver CSI (ebs.csi.aws.com), se debe:
+Crear un StorageClass con provisioner: ebs.csi.aws.com.
+Marcarlo como default (storageclass.kubernetes.io/is-default-class: "true") y remover la anotación de default del in-tree.
+Entonces, todos los PVC sin storageClassName usarán el nuevo driver CSI.
+##### 3. EFS CSI: no EC2 IMDS role found / Failed to fetch Access Points
+Causa
+El controlador EFS CSI intentaba asumir roles desde la metadata de instancia (IMDS), pero el rol de los nodos (instance profile) no tenía permisos, o directamente se requería IRSA y no estaba configurado.
+
+Solución
+
+Asignar permisos EFS (efs:DescribeFileSystems, etc.) al rol IAM del node group, o
+Configurar IRSA con el EFS CSI: crear un rol con la política de EFS y anotar el ServiceAccount (efs-csi-controller) para que asuma ese rol.
+##### 4. Problemas al autoaprovisionar volúmenes por falta de SC default
+Causa
+La aplicación (p.ej. PostgreSQL) quedaba en Pending porque no se definía un storageClassName y no había un SC default configurado correctamente (o el SC default era in-tree sin permisos).
+
+Solución
+
+Crear un StorageClass “default” que use el driver CSI (o el in-tree), y asegurarse de que efectivamente funcione (con los permisos adecuados).
+Verificar con kubectl get storageclass si hay uno marcado como (default).
+##### 5. Eliminar Addon EBS CSI y/o IRSA para volver a un estado anterior
+Causa
+Se necesitaba “deshacer” la configuración de IRSA y el driver CSI para reproducir errores o comparar comportamientos.
+
+Solución
+
+Eliminar el add-on (eksctl delete addon --name aws-ebs-csi-driver ...).
+Eliminar la IAMServiceAccount (y stack de CloudFormation) (eksctl delete iamserviceaccount ...).
+Verificar que el ServiceAccount y el rol IAM ya no existan.
+##### 6. Eliminar OIDC Provider huérfano al destruir el clúster
+Causa
+Tras destruir un clúster EKS, el OIDC provider podía quedar “huérfano” en IAM, generando confusión o ensuciando la cuenta.
+
+Solución
+
+Identificar el ARN del OIDC provider (aws iam list-open-id-connect-providers).
+Ejecutar aws iam delete-open-id-connect-provider --open-id-connect-provider-arn <ARN>.
+Esto se recomienda hacerlo cuando el clúster ya no existe o cuando se está seguro de que no se necesita más el provider.
+  
+   
 ### Crear el Rol IAM
-
 #### ***IMPORTANTE*** Borrar existentes iamserviceaccount y roles
 
 ```bash
@@ -603,8 +668,23 @@ eksctl create iamserviceaccount \
 --role-only \
 --role-name AmazonEKS_EBS_CSI_DriverRole
 
+eksctl create iamserviceaccount \
+--cluster $EKS_CLUSTER_NAME \
+--region $REGION \
+--name ebs-csi-controller-sa \
+--namespace kube-system \
+--attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+--override-existing-serviceaccounts \
+--approve
 
 
+kubectl describe sa ebs-csi-controller-sa -n kube-system
+arn:aws:iam::706722401192:role/eksctl-alfresco-nuevo-addon-iamserviceaccount-Role1-ESowU9zg6eZw
+eksctl create addon \
+  --name aws-ebs-csi-driver \
+  --cluster $EKS_CLUSTER_NAME \
+  --service-account-role-arn arn:aws:iam::706722401192:role/eksctl-alfresco-nuevo-addon-iamserviceaccount-Role1-KZsePeP86lTG  \
+  --force
 #Eliminación Automatización:
 
 #        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
@@ -643,6 +723,7 @@ eksctl create addon \
 eksctl create addon \
 --name aws-ebs-csi-driver \
 --cluster $EKS_CLUSTER_NAME \
+--region $AWS_REGION \
 --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
 --force
 
@@ -664,6 +745,8 @@ kubectl apply -f ebs-test-pod.yaml
 kubectl get pvc
 kubectl get pv
 kubectl get pods
+kubectl get storageclass
+
 ```
 
 
@@ -785,10 +868,6 @@ envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aw
 
 envsubst < aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
 
-
-
-
-    
 ```
 ### ERRORES:
 
@@ -844,12 +923,24 @@ kubectl logs efs-csi-node-45mfb -n $K
 kubectl logs efs-csi-node-9k4pf -n $K 
 kubectl logs efs-csi-node-flrpf -n $K   
 
+kubectl logs ebs-csi-controller-77b8f6466d-9r5x7  -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-rw6gp  -n $K
+kubectl logs ebs-csi-node-5zcnt                   -n $K
+kubectl logs ebs-csi-node-qfklr                   -n $K
+kubectl logs ebs-csi-node-rbvfr                   -n $K
 
-kubectl logs ebs-csi-controller-77b8f6466d-cctm4  -n $K   
-kubectl logs ebs-csi-controller-77b8f6466d-kdqdd  -n $K   
-kubectl logs ebs-csi-node-jgb87                   -n $K   
-kubectl logs ebs-csi-node-pd8xw                   -n $K   
-kubectl logs ebs-csi-node-xdfx8                   -n $K   
+kubectl logs ebs-csi-controller-77b8f6466d-9r5x7   -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-rw6gp   -n $K
+kubectl logs ebs-csi-node-5zcnt                    -n $K
+kubectl logs ebs-csi-node-qfklr                    -n $K
+kubectl logs ebs-csi-node-rbvfr                    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-5jcrn    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-7lxn8    -n $K
+kubectl logs efs-csi-node-9jpbs                    -n $K
+kubectl logs efs-csi-node-tz4q6                    -n $K
+kubectl logs efs-csi-node-vbrd6                    -n $K
+
+
 ```
 
 
@@ -1261,9 +1352,15 @@ Resultado:
 
 # Instalación de Alfresco Content Services
 
-## Crear Namespace para Alfresco
+## Crear el Namespace
+
 ```bash
-kubectl create namespace $HELM_NAMESPACE
+kubectl create namespace $NAMESPACE
+
+if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
+
+kubectl get namespace ${NAMESPACE} || \
+kubectl create namespace ${NAMESPACE}
 ```
 
 ## Configuración del Repositorio de Helm
@@ -1381,11 +1478,20 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 helm repo add alfresco https://kubernetes-charts.alfresco.com/stable
 helm repo update
 
+helm uninstall acs -n $N
+
+kubectl delete pvc data-acs-postgresql-acs-0  -n $N
+kubectl delete pvc elasticsearch-aas-master-elasticsearch-aas-master-0 -n $N
+kubectl delete pvc elasticsearch-master-elasticsearch-master-0 -n $N
+kubectl delete pvc filestore-default-pvc -n $N
+kubectl delete pvc activemq-default-pvc -n $N
+
 helm install acs alfresco/alfresco-content-services \
 --set externalPort="443" \
 --set externalProtocol="https" \
 --set externalHost="acs.${DOMAIN}" \
---set persistence.enabled=false \
+--set persistence.enabled=true \
+--set persistence.storageClass.enabled=true \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
 --set alfresco-sync-service.enabled=false \
 --set postgresql-sync.enabled=false \
@@ -1434,6 +1540,20 @@ helm install acs alfresco/alfresco-content-services \
 --set alfresco-search-enterprise.reindexing.enabled=false \
 --timeout 20m0s \
 --namespace=$NAMESPACE
+
+kubectl get pods -n $N
+kubectl get pvc -n $N
+
+
+helm upgrade --install acs alfresco/alfresco-content-services \
+--set alfresco-repository.persistence.enabled=false \
+--set alfresco-transform-service.filestore.persistence.enabled=false \
+--set global.known_urls=https://${ACS_HOSTNAME} \
+--set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+--values values.yaml \
+--namespace=$NAMESPACE
+
+
 ```
 
 ## instalación de ACS - HELM con S3

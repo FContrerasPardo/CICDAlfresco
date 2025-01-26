@@ -97,22 +97,71 @@ jobs:
            helm delete acs-ingress -n $NAMESPACE
 
        
+#    - name: Uninstall EBS Service account and Role
+#      run: |
+#        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole
+#        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole
+#        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+#        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole
+#        kubectl get serviceaccount -n kube-system
+#        kubectl delete serviceaccount ebs-csi-controller-sa -n kube-system
+#        kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
+#        eksctl delete iamserviceaccount \
+#        --name ebs-csi-controller-sa \
+#        --namespace kube-system \
+#        --cluster $EKS_CLUSTER_NAME
+#
+#        eksctl get addon  --cluster $EKS_CLUSTER_NAME 
+#        eksctl delete addon \
+#        --name aws-ebs-csi-driver \
+#        --cluster $EKS_CLUSTER_NAME \
+#        --region $REGION
     - name: Uninstall EBS Service account and Role
       run: |
-        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole
-        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole
-        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
-        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole
-        kubectl get serviceaccount -n kube-system
-        kubectl delete serviceaccount ebs-csi-controller-sa -n kube-system
-        kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
-        eksctl delete iamserviceaccount \
-        --name ebs-csi-controller-sa \
-        --namespace kube-system \
-        --cluster $EKS_CLUSTER_NAME
+        eksctl delete addon \
+        --name aws-ebs-csi-driver \
+        --cluster $EKS_CLUSTER_NAME \
+        --region $REGION
 
+        eksctl delete iamserviceaccount \
+        --cluster $EKS_CLUSTER_NAME \
+        --region $REGION \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system
         
-      
+      # 2) Obtener el ARN del OIDC Provider ANTES de borrar el clúster
+    - name: Retrieve OIDC Provider ARN
+      id: retrieve-oidc
+      run: |
+        # Obtenemos la URL issuer (ej: https://oidc.eks.us-east-1.amazonaws.com/id/XXXX)
+        CLUSTER_ISSUER=$(aws eks describe-cluster \
+        --name $EKS_CLUSTER_NAME \
+        --query "cluster.identity.oidc.issuer" \
+        --output text | cut -d '/' -f 5 2>/dev/null || true)
+
+        if [ -z "$CLUSTER_ISSUER" ]; then
+        echo "No se pudo obtener el issuer. ¿Quizás el clúster ya no existe?"
+        echo "OIDC_ARN=" >> $GITHUB_ENV
+        exit 0
+        fi
+
+        # Formamos el ARN completo
+        PROVIDER_ARN="arn:aws:iam::$ACCOUNT_ID:oidc-provider/oidc.eks.$REGION.amazonaws.com/id/$CLUSTER_ISSUER"
+
+        echo "OIDC Provider ARN -> $PROVIDER_ARN"
+        # Guardamos la variable en el entorno de Actions
+        echo "OIDC_ARN=$PROVIDER_ARN" >> $GITHUB_ENV
+    
+    # 3) Eliminar el OIDC Provider de IAM
+    - name: Delete OIDC Provider
+      run: |
+        if [ -z "${{ env.OIDC_ARN }}" ]; then
+          echo "No OIDC ARN found. Skipping delete."
+        else
+          echo "Deleting OIDC provider ${{ env.OIDC_ARN }}"
+          aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "${{ env.OIDC_ARN }}"
+        fi
+
     - name: Delete all PVCs
       run: kubectl delete pvc --all -n $NAMESPACE  
     - name: Delete all ConfigMaps
