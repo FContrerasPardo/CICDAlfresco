@@ -205,13 +205,13 @@ aws configure
   export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
 
 
-  export EKS_CLUSTER_NAME=alfresco
+  export EKS_CLUSTER_NAME=alfrescom
   export ECR_NAME=alfresco
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
-  export NAMESPACE=alfresco
-  export N=alfresco
+  export NAMESPACE=alfrescom
+  export N=alfrescom
   export EFSDNS=fs-098a5b313abf42c10.efs.us-east-1.amazonaws.com
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
@@ -506,6 +506,24 @@ Enable the OIDC provider that is necessary to install further EKS addons later:
 
 ```bash
 eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --region $REGION  --approve
+eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME   --approve
+
+aws eks describe-cluster --name $EKS_CLUSTER_NAME --region $REGION \
+  --query "cluster.identity.oidc.issuer" --output text
+
+  aws iam delete-open-id-connect-provider --open-id-connect-provider-arn  
+```
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/3A7A114B695B7897FE9B95F49031015D
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/57936F72116832D76A3E21F551A44595
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/68F203A6E35587F87F68B1C67699C1B0
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/796928A54C89F1B3C58AF51F4CE3FD44
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/8081B2764D5C3AF639A015F6157F2D75
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/8725B60DED2FD5CFEBCC456C6151C93F
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/899F874C6F5AB16182AA0D0FA18360D0
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/B47BA91C19166CFF3A4AA7F3485F53F6
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/F259AE3711912BC4B5291E84BE432643
+```
+
 ```
 
 https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html
@@ -531,6 +549,19 @@ echo $oidc_id
         kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
         eksctl delete iamserviceaccount \
         --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME
+
+
+        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
+        kubectl get serviceaccount -n kube-system
+        kubectl delete serviceaccount ebs-csi-controller-sa -n kube-system
+        kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
+        eksctl delete iamserviceaccount \
+        --name ebs-csi-controller-sa-$EKS_CLUSTER_NAME \
         --namespace kube-system \
         --cluster $EKS_CLUSTER_NAME
 ```
@@ -573,6 +604,7 @@ eksctl create iamserviceaccount \
 --role-name AmazonEKS_EBS_CSI_DriverRole
 
 
+
 #Eliminación Automatización:
 
 #        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
@@ -604,7 +636,7 @@ eksctl delete addon \
 eksctl create addon \
 --name aws-ebs-csi-driver \
 --cluster $EKS_CLUSTER_NAME \
---region $REGION \
+--region $AWS_REGION \
 --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME \
 --force
 
@@ -615,12 +647,25 @@ eksctl create addon \
 --force
 
 
+
 eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
-```
-
-
 
 aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.roleArn"
+
+```
+
+#### Pronbar Addon
+
+Se crea una pvc y un por que la llame ya que el sc de gp2 esta configurado para esperar consumo del pod:
+
+```
+kubectl apply -f ebs-test-pvc.yaml
+kubectl apply -f ebs-test-pod.yaml
+kubectl get pvc
+kubectl get pv
+kubectl get pods
+```
+
 
 
 #### Troubleshooting: Verificación del EBS CSI Driver
@@ -782,7 +827,31 @@ aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name alf
 arn:aws:iam::706722401192:role/eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE
 
 arn:aws:iam::706722401192:role/eksctl-alfresco-nodegroup
+
+
+kubectl get pods -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-gb2wx  -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-jbxkz -n $K
+kubectl logs ebs-csi-node-752mg   -n $K
+kubectl logs ebs-csi-node-fblr9    -n $K
+kubectl logs ebs-csi-node-shw5r    -n $K
+
+
+
+kubectl logs efs-csi-controller-b999f9d4c-d7l65 -n $K
+kubectl logs efs-csi-controller-b999f9d4c-kndg6 -n $K
+kubectl logs efs-csi-node-45mfb -n $K
+kubectl logs efs-csi-node-9k4pf -n $K 
+kubectl logs efs-csi-node-flrpf -n $K   
+
+
+kubectl logs ebs-csi-controller-77b8f6466d-cctm4  -n $K   
+kubectl logs ebs-csi-controller-77b8f6466d-kdqdd  -n $K   
+kubectl logs ebs-csi-node-jgb87                   -n $K   
+kubectl logs ebs-csi-node-pd8xw                   -n $K   
+kubectl logs ebs-csi-node-xdfx8                   -n $K   
 ```
+
 
 Luego, revisa las políticas adjuntas al rol:
 ```sh
@@ -1308,13 +1377,15 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --timeout 20m0s \
 --namespace=$NAMESPACE
 
-helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
+
+helm repo add alfresco https://kubernetes-charts.alfresco.com/stable
+helm repo update
+
+helm install acs alfresco/alfresco-content-services \
 --set externalPort="443" \
 --set externalProtocol="https" \
 --set externalHost="acs.${DOMAIN}" \
 --set persistence.enabled=false \
---set persistence.storageClass.enabled=false \
---set alfresco-repository.persistence.enabled=false \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
 --set alfresco-sync-service.enabled=false \
 --set postgresql-sync.enabled=false \
@@ -1692,7 +1763,7 @@ nslookup alfresco.mydomain.com
 ### Limpieza y Reinstalación
 ```bash
 helm uninstall acs --namespace $NAMESPACE
-kubectl delete pvc --all -n alfresco
+kubectl delete pvc --all -n $NAMESPACE
 kubectl delete configmap --all -n alfresco
 kubectl delete secret --all -n alfresco
 ```
