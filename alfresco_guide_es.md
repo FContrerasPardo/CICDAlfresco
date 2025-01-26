@@ -2077,3 +2077,42 @@ terraform destroy
 #cuando el estado del backend ya existe y genera conflicto
 terraform init -reconfigure
 ```
+
+
+# nuevo helm intento:
+
+```bash
+export ACS_HOSTNAME=acs.$DOMAIN
+
+helm upgrade --install acs alfresco/alfresco-content-services \
+--set alfresco-repository.persistence.enabled=true \
+--set alfresco-repository.persistence.storageClass="nfs-client" \
+--set alfresco-transform-service.filestore.persistence.enabled=true \
+--set alfresco-transform-service.filestore.persistence.storageClass="nfs-client" \
+--set global.known_urls=https://${ACS_HOSTNAME} \
+--set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+--namespace=$NAMESPACE
+
+
+helm upgrade --install acs ./alfresco-content-services \
+--set alfresco-repository.persistence.enabled=true \
+--set alfresco-repository.persistence.storageClass="nfs-client" \
+--set alfresco-transform-service.filestore.persistence.enabled=true \
+--set alfresco-transform-service.filestore.persistence.storageClass="nfs-client" \
+--set global.known_urls=https://${ACS_HOSTNAME} \
+--set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+--values letsencrypt_values.yaml \
+--namespace=alfresco
+
+
+
+echo "UPSTREAM_HELM_VALUES=values.yaml" >> $GITHUB_ENV
+export UPSTREAM_HELM_VALUES=values.yaml
+
+helm install acs ./alfresco-content-services \
+--set global.search.sharedSecret="$(openssl rand -hex 24)" \
+--set global.known_urls=https://${ACS_HOSTNAME} \
+--set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+--values ./acs-deployment-master/helm/alfresco-content-services/$UPSTREAM_HELM_VALUES 
+
+```
