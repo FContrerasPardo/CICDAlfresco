@@ -111,10 +111,12 @@ jobs:
       run: |
         echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}"
         echo "EFS_ID=${{steps.tf-outputs.outputs.efs_id}}"
+        echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}"
         echo "EKS_CLUSTER_ENDPOINT=${{steps.tf-outputs.outputs.eks_cluster_endpoint}}"
         echo "EKS_NODE_GROUP_NAME=${{steps.tf-outputs.outputs.aws_eks_node_group}}"
         echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}" >> $GITHUB_ENV
         echo "EFS_ID=${{steps.tf-outputs.outputs.efs_id}}" >> $GITHUB_ENV
+        echo "EFS_DNS_NAME=${{steps.tf-outputs.outputs.efs_dns_name}}" >> $GITHUB_ENV
         echo "EKS_CLUSTER_ENDPOINT=${{steps.tf-outputs.outputs.eks_cluster_endpoint}}" >> $GITHUB_ENV
         echo "EKS_NODE_GROUP_NAME=${{steps.tf-outputs.outputs.aws_eks_node_group}}" >> $GITHUB_ENV
 
@@ -179,11 +181,11 @@ jobs:
           --region $AWS_REGION \
           --service-account-role-arn "${{ env.ROLE_ARN }}" \
           --force        
-    - name: Setup EBS CSI Driver Just to have it if not exits
-      run: |
-        eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION || \
-        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
-
+#    - name: Setup EBS CSI Driver Just to have it if not exits
+#      run: |
+#        eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION || \
+#        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
+#
     - name: Add EFS CSI Driver Helm repo
       run: |
         helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
