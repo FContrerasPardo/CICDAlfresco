@@ -125,7 +125,7 @@ jobs:
       if: steps.apply.outcome == 'success'
       run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
   
-    - name: Create namespace and associate IAM OIDC provider
+    - name: Create namespace
       if: steps.getconfig.outcome == 'success'
       run: |
         kubectl get namespace ${NAMESPACE} || \
@@ -186,6 +186,33 @@ jobs:
 #        eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION || \
 #        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
 #
+    - name: Setup Default Driver
+      run: |
+        kubectl patch storageclass gp2 \
+          -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+#     Si se desea almacenar todo en EFS por defecto 
+#      # primero desmarcas gp2 si estuviera default
+#      kubectl patch storageclass gp2 \
+#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}' \
+#        || true
+##     # luego marcas alfresco-efs-sc como default
+#      kubectl patch storageclass alfresco-efs-sc \
+#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+##     Si se desea almacenar todo en nfs-client por defecto 
+#      1) Quitar la anotación de default al SC que hoy está como default (en tu caso, alfresco-efs-sc)
+#      kubectl patch storageclass alfresco-efs-sc \
+#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+#            
+#      # 2) Marcar como default el SC “nfs-client”
+#      kubectl patch storageclass nfs-client \
+#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+
+
+
+
     - name: Add EFS CSI Driver Helm repo
       run: |
         helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver

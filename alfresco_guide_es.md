@@ -191,17 +191,16 @@ aws configure
   export REGION=us-east-1
   export AWS_REGION=us-east-1
   export NAMESPACE=alfresco1
-  export EFSDNS=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en terraform.
-  export EFS_DNS_NAME=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para purebas, esto es dinamico en 
-  export EFS_ID=fs-020f8748176300dc0
-  terraform. 
   export N=alfresco1
   export K=kube-system
+  export EFSDNS=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para pruebas, esto es dinamico en terraform.
+  export EFS_DNS_NAME=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para pruebas, esto es dinamico en 
+  export EFS_ID=fs-03afea143a64a4148
+  export EFS_PV_NAME=alfresco
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
-  export EFS_PV_NAME=alfresco
   export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
   export ACS_HOSTNAME=acs.$DOMAIN
 
@@ -211,14 +210,19 @@ aws configure
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
+  export AWS_REGION=us-east-1
   export NAMESPACE=alfrescom
   export N=alfrescom
-  export EFSDNS=fs-098a5b313abf42c10.efs.us-east-1.amazonaws.com
+  export K=kube-system
+  export EFSDNS=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para pruebas, esto es dinamico en terraform.
+  export EFS_DNS_NAME=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para pruebas, esto es dinamico en 
+  export EFS_ID=fs-03afea143a64a4148
+  export EFS_PV_NAME=alfresco
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
-  export EFS_PV_NAME=
+  
 
    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
    EKS_CLUSTER_NAME="devopsalfresco"
@@ -518,7 +522,7 @@ oidc_id=$(aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.ide
 echo $oidc_id
 
 aws iam list-open-id-connect-providers
-aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/FCCFF924C2EFF5D341B2C20144A26EE8
+aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::706722401192:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/$oidc_id
 
 CLUSTER_ISSUER=$(aws eks describe-cluster \
         --name $EKS_CLUSTER_NAME \
@@ -710,6 +714,55 @@ eksctl delete addon \
 --region $REGION
 
 ```
+#### Recrear el addon
+
+```sh
+
+eksctl delete addon \
+--name aws-ebs-csi-driver \
+--cluster $EKS_CLUSTER_NAME \
+--region $AWS_REGION
+
+#si no esta buscar en general
+eksctl delete iamserviceaccount \
+--name ebs-csi-controller-sa \
+--namespace kube-system \
+--cluster $EKS_CLUSTER_NAME
+
+
+eksctl create iamserviceaccount \
+--cluster $EKS_CLUSTER_NAME \
+--region $AWS_REGION \
+--name ebs-csi-controller-sa \
+--namespace kube-system \
+--attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+--override-existing-serviceaccounts \
+--approve
+
+
+
+
+# Describimos el SA para extraer la anotación con el ARN del rol
+SA_INFO=$(kubectl describe sa ebs-csi-controller-sa -n kube-system)
+
+ROLE_ARN=$(echo "$SA_INFO" | grep 'eks.amazonaws.com/role-arn:' | sed -E 's/.*eks.amazonaws.com\/role-arn: //')
+
+echo $ROLE_ARN
+
+eksctl create addon \
+  --name aws-ebs-csi-driver \
+  --cluster $EKS_CLUSTER_NAME \
+  --region $AWS_REGION \
+  --service-account-role-arn "$ROLE_ARN" \
+  --force 
+
+
+aws eks describe-nodegroup \
+  --cluster-name $EKS_CLUSTER_NAME \
+  --nodegroup-name <NODEGROUP_NAME> \
+  --query "nodegroup.nodeRole" \
+  --output text
+```
 
 #### Crear el addon
 ``` bash
@@ -727,7 +780,12 @@ eksctl create addon \
 --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
 --force
 
-
+eksctl create addon \
+--name aws-ebs-csi-driver \
+--cluster $EKS_CLUSTER_NAME \
+--region $AWS_REGION \
+--service-account-role-arn "${{ env.ROLE_ARN }}" \
+--force
 
 eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME --force
 
@@ -735,7 +793,7 @@ aws eks describe-cluster --name $EKS_CLUSTER_NAME --query "cluster.roleArn"
 
 ```
 
-#### Pronbar Addon
+#### Probar Addon
 
 Se crea una pvc y un por que la llame ya que el sc de gp2 esta configurado para esperar consumo del pod:
 
@@ -856,6 +914,16 @@ storageClasses:
     volumeBindingMode: Immediate
 EOT
 
+
+eksctl create iamserviceaccount \
+--cluster $EKS_CLUSTER_NAME \
+--region $AWS_REGION \
+--name efs-csi-controller-sa \
+--namespace kube-system \
+--attach-policy-arn arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess \
+--override-existing-serviceaccounts \
+--approve
+
 # Agregar el repositorio de Helm para el driver EFS CSI
 helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
 
@@ -865,10 +933,21 @@ envsubst < ~/environment/CICDAlfresco/files/aws-efs-values.yml | helm upgrade aw
   --namespace kube-system \
   -f -
 
+eksctl delete iamserviceaccount \
+--name efs-csi-controller-sa \
+--namespace kube-system \
+--cluster $EKS_CLUSTER_NAME
 
 envsubst < aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
 
+
+kubectl patch storageclass nfs-client \
+  -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
 ```
+
+
+
 ### ERRORES:
 
 #### ERROR del ID del File
@@ -916,29 +995,16 @@ kubectl logs ebs-csi-node-fblr9    -n $K
 kubectl logs ebs-csi-node-shw5r    -n $K
 
 
-
-kubectl logs efs-csi-controller-b999f9d4c-d7l65 -n $K
-kubectl logs efs-csi-controller-b999f9d4c-kndg6 -n $K
-kubectl logs efs-csi-node-45mfb -n $K
-kubectl logs efs-csi-node-9k4pf -n $K 
-kubectl logs efs-csi-node-flrpf -n $K   
-
-kubectl logs ebs-csi-controller-77b8f6466d-9r5x7  -n $K
-kubectl logs ebs-csi-controller-77b8f6466d-rw6gp  -n $K
-kubectl logs ebs-csi-node-5zcnt                   -n $K
-kubectl logs ebs-csi-node-qfklr                   -n $K
-kubectl logs ebs-csi-node-rbvfr                   -n $K
-
-kubectl logs ebs-csi-controller-77b8f6466d-9r5x7   -n $K
-kubectl logs ebs-csi-controller-77b8f6466d-rw6gp   -n $K
-kubectl logs ebs-csi-node-5zcnt                    -n $K
-kubectl logs ebs-csi-node-qfklr                    -n $K
-kubectl logs ebs-csi-node-rbvfr                    -n $K
-kubectl logs efs-csi-controller-b999f9d4c-5jcrn    -n $K
-kubectl logs efs-csi-controller-b999f9d4c-7lxn8    -n $K
-kubectl logs efs-csi-node-9jpbs                    -n $K
-kubectl logs efs-csi-node-tz4q6                    -n $K
-kubectl logs efs-csi-node-vbrd6                    -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-5rp5d   -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-hhzsg   -n $K
+kubectl logs ebs-csi-node-h45nl                    -n $K
+kubectl logs ebs-csi-node-m47m9                    -n $K
+kubectl logs ebs-csi-node-n7f4r                    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-l6cfs    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-q5h5b    -n $K
+kubectl logs efs-csi-node-q2wjc                    -n $K
+kubectl logs efs-csi-node-slnmz                    -n $K
+kubectl logs efs-csi-node-xpnkz                    -n $K
 
 
 ```
@@ -967,6 +1033,40 @@ eksctl create iamserviceaccount \
 --role-only \
 --role-name AmazonEKS_EFS_CSI_DriverRole
 ```
+
+
+Los errores del log de EFS CSI son constantes:
+
+Failed to fetch Access Points or Describe File System: Describe File System failed: ... no EC2 IMDS role found ...
+operation error e2imds: GetMetadata, canceled, context deadline exceeded
+
+en otras palabras, el EFS CSI no está encontrando credenciales para invocar la API de EFS (DescribeFileSystems, etc.). Como consecuencia, no puede aprovisionar ni montar el filesystem EFS.
+
+En concreto, el driver intenta usar IMDS (Instance Metadata Service) y dice "no EC2 IMDS role found". Esto significa que:
+
+El rol IAM de los nodos (Node Instance Profile) no tiene permisos EFS,
+o
+El EFS CSI Driver no está configurado con IRSA (IAM Roles for Service Accounts), por lo que tampoco dispone de credenciales.
+Como no tiene credenciales para efs:DescribeFileSystems, el EFS CSI falla al crear Access Points (o al describir el FS).
+
+
+
+eksctl create iamserviceaccount \
+--cluster $EKS_CLUSTER_NAME \
+--region $AWS_REGION \
+--name efs-csi-controller-sa \
+--namespace kube-system \
+--attach-policy-arn arn:aws:iam::aws:policy/AmazonElasticFileSystemClientFullAccess \
+--override-existing-serviceaccounts \
+--approve
+
+
+helm upgrade --install aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver \
+  --namespace kube-system \
+  --set controller.serviceAccount.create=false \
+  --set controller.serviceAccount.name=efs-csi-controller-sa \
+  -f files/aws-efs-values.yml
+
 
 
 ## 2. NFS Provisioner (obsoleto)
@@ -1363,14 +1463,6 @@ kubectl get namespace ${NAMESPACE} || \
 kubectl create namespace ${NAMESPACE}
 ```
 
-## Configuración del Repositorio de Helm
-
-Esto solo se hace para el caso de uso del repo publico, en mi caso se descarga el repositorio y se agrega al proyecto
-
-```bash
-helm repo add alfresco https://kubernetes-charts.alfresco.com/stable
-helm repo update
-```
 
 ## Login en Quay
 ```sh
@@ -1398,7 +1490,46 @@ kubectl create secret docker-registry quay-registry-secret --docker-server=quay.
 ```
 
 
-## instalación de ACS - HELM
+# Configuración del Repositorio de Helm
+
+Esto solo se hace para el caso de uso del repo publico, en mi caso se descarga el repositorio y se agrega al proyecto
+
+```bash
+helm repo add alfresco https://kubernetes-charts.alfresco.com/stable
+helm repo update
+```
+## Eliminación antes de crear (en caso de existir)
+```bash
+helm uninstall acs -n $N
+
+kubectl delete pvc data-acs-postgresql-acs-0  -n $N
+kubectl delete pvc elasticsearch-aas-master-elasticsearch-aas-master-0 -n $N
+kubectl delete pvc elasticsearch-master-elasticsearch-master-0 -n $N
+kubectl delete pvc filestore-default-pvc -n $N
+kubectl delete pvc activemq-default-pvc -n $N
+
+kubectl get pods -n $N
+kubectl get pvc -n $N
+kubectl get storageclass
+
+
+
+#dianostico de almacenamiento dinamico
+kubectl get pods -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-gb2wx  -n $K
+kubectl logs ebs-csi-controller-77b8f6466d-jbxkz -n $K
+kubectl logs ebs-csi-node-752mg   -n $K
+kubectl logs ebs-csi-node-fblr9    -n $K
+kubectl logs ebs-csi-node-shw5r    -n $K
+
+
+kubectl logs efs-csi-controller-b999f9d4c-cqwmp    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-srbxm    -n $K
+kubectl logs efs-csi-node-fj2g4                    -n $K
+kubectl logs efs-csi-node-ftvbh                    -n $K
+kubectl logs efs-csi-node-vr2dm                    -n $K
+```
+## instalación de ACS - HELM (Ultimo)
 
 Comando actualizado para usar el helm local
 ```sh
@@ -1421,8 +1552,8 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set persistence.storageClass.name="nfs-client" \
 --set alfresco-repository.persistence.existingClaim="alf-content-pvc" \
 --set postgresql.primary.persistence.existingClaim="alf-content-pvc" \
---set activemq.persistence.existingClaim="alf-content-pvc" \
---set alfresco-transform-service.filestore.persistence.existingClaim="alf-content-pvc" \
+#--set activemq.persistence.existingClaim="alf-content-pvc" \
+#--set alfresco-transform-service.filestore.persistence.existingClaim="alf-content-pvc" \
 --set postgresql.volumePermissions.enabled=true \
 --set alfresco-repository.persistence.enabled=true \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
@@ -1473,8 +1604,9 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set alfresco-search-enterprise.reindexing.enabled=false \
 --timeout 20m0s \
 --namespace=$NAMESPACE
-
-
+```
+## Este es el de prubea de repositorio remoto
+```sh
 helm repo add alfresco https://kubernetes-charts.alfresco.com/stable
 helm repo update
 
@@ -1485,6 +1617,14 @@ kubectl delete pvc elasticsearch-aas-master-elasticsearch-aas-master-0 -n $N
 kubectl delete pvc elasticsearch-master-elasticsearch-master-0 -n $N
 kubectl delete pvc filestore-default-pvc -n $N
 kubectl delete pvc activemq-default-pvc -n $N
+
+helm upgrade --install acs alfresco/alfresco-content-services \
+--set alfresco-repository.persistence.enabled=false \
+--set alfresco-transform-service.filestore.persistence.enabled=false \
+--set global.known_urls=https://${ACS_HOSTNAME} \
+--set global.alfrescoRegistryPullSecrets=quay-registry-secret \
+--values values.yaml \
+--namespace=$NAMESPACE
 
 helm install acs alfresco/alfresco-content-services \
 --set externalPort="443" \
@@ -1543,15 +1683,70 @@ helm install acs alfresco/alfresco-content-services \
 
 kubectl get pods -n $N
 kubectl get pvc -n $N
+```
+## este es el de prueba local de ajustes
+```sh
 
-
-helm upgrade --install acs alfresco/alfresco-content-services \
---set alfresco-repository.persistence.enabled=false \
---set alfresco-transform-service.filestore.persistence.enabled=false \
---set global.known_urls=https://${ACS_HOSTNAME} \
+helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
+--set externalPort="443" \
+--set externalProtocol="https" \
+--set externalHost="acs.${DOMAIN}" \
+--set persistence.enabled=true \
+--set persistence.storageClass.enabled=true \
+--set persistence.storageClass.name="nfs-client" \
+--set alfresco-repository.persistence.enabled=true \
+--set postgresql.volumePermissions.enabled=true \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
---values values.yaml \
+--set alfresco-sync-service.enabled=false \
+--set postgresql-sync.enabled=false \
+--set alfresco-transform-service.transformrouter.replicaCount="1" \
+--set alfresco-transform-service.pdfrenderer.replicaCount="1" \
+--set alfresco-transform-service.imagemagick.replicaCount="1" \
+--set alfresco-transform-service.libreoffice.replicaCount="1" \
+--set alfresco-transform-service.tika.replicaCount="1" \
+--set alfresco-transform-service.transformmisc.replicaCount="1" \
+--set alfresco-transform-service.transformrouter.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.pdfrenderer.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.imagemagick.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.libreoffice.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.tika.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.transformmisc.resources.limits.memory="2Gi" \
+--set alfresco-transform-service.transformrouter.resources.limits.cpu="250m" \
+--set alfresco-transform-service.pdfrenderer.resources.limits.cpu="250m" \
+--set alfresco-transform-service.imagemagick.resources.limits.cpu="250m" \
+--set alfresco-transform-service.libreoffice.resources.limits.cpu="250m" \
+--set alfresco-transform-service.tika.resources.limits.cpu="250m" \
+--set alfresco-transform-service.transformmisc.resources.limits.cpu="250m" \
+--set alfresco-transform-service.filestore.resources.limits.cpu="250m" \
+--set postgresql.primary.resources.requests.cpu="250m" \
+--set postgresql.primary.resources.limits.cpu="500m" \
+--set postgresql.primary.resources.limits.memory="6Gi" \
+--set alfresco-share.resources.limits.cpu="250m" \
+--set alfresco-search-enterprise.resources.requests.cpu="250m" \
+--set alfresco-search-enterprise.resources.limits.cpu="250m" \
+--set alfresco-repository.resources.requests.cpu="500m" \
+--set alfresco-repository.resources.limits.cpu="500m" \
+--set alfresco-repository.readinessProbe.periodSeconds="200" \
+--set alfresco-repository.livenessProbe.periodSeconds="200" \
+--set alfresco-repository.startupProbe.periodSeconds="200" \
+--set alfresco-transform-service.pdfrenderer.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.pdfrenderer.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.imagemagick.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.imagemagick.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.tika.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.tika.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.libreoffice.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.libreoffice.readinessProbe.periodSeconds="200" \
+--set alfresco-transform-service.transformmisc.livenessProbe.periodSeconds="200" \
+--set alfresco-transform-service.transformmisc.readinessProbe.periodSeconds="200" \
+--set alfresco-share.livenessProbe.periodSeconds="200" \
+--set alfresco-share.readinessProbe.periodSeconds="200" \
+--set alfresco-search-enterprise.reindexing.enabled=false \
+--timeout 20m0s \
 --namespace=$NAMESPACE
+
+kubectl get pods -n $N
+kubectl get pvc -n $N
 
 
 ```
@@ -1984,12 +2179,13 @@ Esta eliminación solo en caso de requerir validaciones adicionales
 ```
 
 
+
 ## 3 destruir el EFS 
 
 Esto se puede hacer manual o validación por codigo.
 Tras eliminar el EFS, validar y reliminar los recursos persistentes.
 
-### 3. Eliminar Recursos Persistentes
+## 4. Eliminar Recursos Persistentes
 Eliminar PVCs (Persistent Volume Claims):
 
 ```bash
@@ -2006,6 +2202,9 @@ Eliminar el Namespace (Opcional): Si no necesitas mantener el namespace alfresco
 ```bash
 kubectl delete namespace alfresco
 ```
+
+## Eliminar volumenes de gp3 gp2
+Esto se puede ejecutar manualmente.
 
 ## 5. Deshabilitar Addons del Clúster
 Los addons de EKS, como el EBS CSI Driver, también pueden generar costos.
