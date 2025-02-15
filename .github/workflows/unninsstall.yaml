@@ -93,8 +93,9 @@ jobs:
     - name: Uninstall ACS Helm Chart
       run: helm uninstall acs --namespace $NAMESPACE  
     - name: Uninstall ACS Ingress Helm Chart
-      run: helm uninstall acs-ingress -n $NAMESPACE  
-           helm delete acs-ingress -n $NAMESPACE
+      run: |
+          helm uninstall acs-ingress -n $NAMESPACE  
+#          helm delete acs-ingress -n $NAMESPACE
 
        
 #    - name: Uninstall EBS Service account and Role
@@ -118,17 +119,23 @@ jobs:
 #        --region $REGION
     - name: Uninstall EBS Service account and Role
       run: |
+        eksctl get addon  --cluster $EKS_CLUSTER_NAME 
         eksctl delete addon \
         --name aws-ebs-csi-driver \
         --cluster $EKS_CLUSTER_NAME \
-        --region AWS_REGION
+        --region $REGION
 
         eksctl delete iamserviceaccount \
-        --cluster $EKS_CLUSTER_NAME \
-        --region AWS_REGION \
         --name ebs-csi-controller-sa \
-        --namespace kube-system
-        
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME
+
+#        eksctl delete iamserviceaccount \
+#        --cluster $EKS_CLUSTER_NAME \
+#        --region AWS_REGION \
+#        --name ebs-csi-controller-sa \
+#        --namespace kube-system
+
       # 2) Obtener el ARN del OIDC Provider ANTES de borrar el clúster
     - name: Retrieve OIDC Provider ARN
       id: retrieve-oidc

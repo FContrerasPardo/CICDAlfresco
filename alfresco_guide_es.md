@@ -186,6 +186,7 @@ aws configure
   export EKS_CLUSTER_NAME=alfresco-cluster
   export ECR_NAME=alfresco
   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+  export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
   
   export S3_BUCKET_NAME=alfresco-content-bucket
   export REGION=us-east-1
@@ -214,15 +215,16 @@ aws configure
   export NAMESPACE=alfrescom
   export N=alfrescom
   export K=kube-system
-  export EFSDNS=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para pruebas, esto es dinamico en terraform.
-  export EFS_DNS_NAME=fs-020f8748176300dc0.efs.us-east-1.amazonaws.com #esto es solo para pruebas, esto es dinamico en 
-  export EFS_ID=fs-03afea143a64a4148
-  export EFS_PV_NAME=alfresco
+  export EFSDNS=fs-0a66d26c866003f89.efs.us-east-1.amazonaws.com
+  export EFS_DNS_NAME=fs-0a66d26c866003f89.efs.us-east-1.amazonaws.com
+  export EFS_ID=fs-0a66d26c866003f89
+  export EFS_PV_NAME=alfrescom
   export CERTIFICATE_ARN=arn:aws:acm:us-east-1:706722401192:certificate/a8babb15-e7fe-4e14-a692-a23dbee1cb47
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
-  
+  export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
+  export ACS_HOSTNAME=acs.$DOMAIN
 
    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
    EKS_CLUSTER_NAME="devopsalfresco"
@@ -428,6 +430,16 @@ registrar el cluster>
 aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $REGION 
 ```
 
+## Crear el Namespace
+
+```bash
+kubectl create namespace $NAMESPACE
+
+if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
+
+kubectl get namespace ${NAMESPACE} || \
+kubectl create namespace ${NAMESPACE}
+```
 
 
 ### Validar el Archivo `kubeconfig`
@@ -675,12 +687,13 @@ eksctl create iamserviceaccount \
 eksctl create iamserviceaccount \
 --cluster $EKS_CLUSTER_NAME \
 --region $REGION \
---name ebs-csi-controller-sa \
+--name ebs-csi-controller-sa-$EKS_CLUSTER_NAME \
 --namespace kube-system \
 --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
 --override-existing-serviceaccounts \
 --approve
 
+kubectl describe sa ebs-csi-controller-sa-$EKS_CLUSTER_NAME -n kube-system
 
 kubectl describe sa ebs-csi-controller-sa -n kube-system
 arn:aws:iam::706722401192:role/eksctl-alfresco-nuevo-addon-iamserviceaccount-Role1-ESowU9zg6eZw
@@ -744,6 +757,7 @@ eksctl create iamserviceaccount \
 
 # Describimos el SA para extraer la anotación con el ARN del rol
 SA_INFO=$(kubectl describe sa ebs-csi-controller-sa -n kube-system)
+SA_INFO=$(kubectl describe sa ebs-csi-controller-sa-$EKS_CLUSTER_NAME -n kube-system)
 
 ROLE_ARN=$(echo "$SA_INFO" | grep 'eks.amazonaws.com/role-arn:' | sed -E 's/.*eks.amazonaws.com\/role-arn: //')
 
@@ -981,10 +995,15 @@ Verificar los permisos del rol IAM: Encuentra el rol IAM asociado al ServiceAcco
 aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text
 ng-56ea77ce
 aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name $NODEGROUP_NAME --query "nodegroup.nodeRole" --output text
+
+aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name ng-097d7360 --query "nodegroup.nodeRole" --output text
+
 aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name alfresco-node-group --query "nodegroup.nodeRole" --output text
 arn:aws:iam::706722401192:role/eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE
 
 arn:aws:iam::706722401192:role/eksctl-alfresco-nodegroup
+
+arn:aws:iam::706722401192:role/eksctl-alfrescom-nodegroup-ng-097d-NodeInstanceRole-jEOLvGAbsSlK
 
 
 kubectl get pods -n $K
@@ -1006,19 +1025,25 @@ kubectl logs efs-csi-node-q2wjc                    -n $K
 kubectl logs efs-csi-node-slnmz                    -n $K
 kubectl logs efs-csi-node-xpnkz                    -n $K
 
+kubectl logs efs-csi-controller-b999f9d4c-b5gx2    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-w2kjf    -n $K
+kubectl logs efs-csi-node-c7fdn                    -n $K
+kubectl logs efs-csi-node-qnhml                    -n $K
+kubectl logs efs-csi-node-v4rvj                    -n $K
+
 
 ```
 
 
 Luego, revisa las políticas adjuntas al rol:
 ```sh
-aws iam list-attached-role-policies --role-name <ROLENAME>
+aws iam list-attached-role-policies --role-name eksctl-alfrescom-nodegroup-ng-097d-NodeInstanceRole-jEOLvGAbsSlK
 aws iam list-attached-role-policies --role-name eksctl-alfresco-nodegroup
 ```
 Adjuntar la política requerida: Asegúrate de que el rol IAM tenga la política AmazonEFSCSIDriverPolicy adjunta. Si no está adjunta, ejecútala:
 ```sh
 aws iam attach-role-policy --role-name <ROLENAME> --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
-aws iam attach-role-policy --role-name eksctl-alfresco-cluster-nodegroup--NodeInstanceRole-aviSAZQhKVUE --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
+aws iam attach-role-policy --role-name eksctl-alfrescom-nodegroup-ng-097d-NodeInstanceRole-jEOLvGAbsSlK --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
 ```
 
 NO FUE NECESARIO MODIFICAR EL SERVICE ACCOUNT SOLO CON LA POLITICA FUNCIONÓ EL EFS.
@@ -1452,18 +1477,6 @@ Resultado:
 
 # Instalación de Alfresco Content Services
 
-## Crear el Namespace
-
-```bash
-kubectl create namespace $NAMESPACE
-
-if ! kubectl get namespace ${NAMESPACE}; then kubectl create namespace ${NAMESPACE}; fi
-
-kubectl get namespace ${NAMESPACE} || \
-kubectl create namespace ${NAMESPACE}
-```
-
-
 ## Login en Quay
 ```sh
 kubectl create secret docker-registry quay-registry-secret --docker-server=quay.io --docker-username=fc7430 --docker-password=Marzo! -n $NAMESPACE
@@ -1522,12 +1535,16 @@ kubectl logs ebs-csi-node-752mg   -n $K
 kubectl logs ebs-csi-node-fblr9    -n $K
 kubectl logs ebs-csi-node-shw5r    -n $K
 
-
-kubectl logs efs-csi-controller-b999f9d4c-cqwmp    -n $K
-kubectl logs efs-csi-controller-b999f9d4c-srbxm    -n $K
-kubectl logs efs-csi-node-fj2g4                    -n $K
-kubectl logs efs-csi-node-ftvbh                    -n $K
-kubectl logs efs-csi-node-vr2dm                    -n $K
+kubectl logs ebs-csi-controller-754654dfc8-9sc85   -n $K
+kubectl logs ebs-csi-controller-754654dfc8-vp5tz   -n $K
+kubectl logs ebs-csi-node-74kvb                    -n $K
+kubectl logs ebs-csi-node-shxx4                    -n $K
+kubectl logs ebs-csi-node-zz7bq                    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-vkqgd    -n $K
+kubectl logs efs-csi-controller-b999f9d4c-vlzdp    -n $K
+kubectl logs efs-csi-node-nmk2g                    -n $K
+kubectl logs efs-csi-node-xtcrn                    -n $K
+kubectl logs efs-csi-node-z5snz                    -n $K
 ```
 ## instalación de ACS - HELM (Ultimo)
 
@@ -1541,7 +1558,7 @@ kubectl delete pvc elasticsearch-master-elasticsearch-master-0 -n $N
 kubectl delete pvc filestore-default-pvc -n $N
 kubectl delete pvc activemq-default-pvc -n $N
 
-kubectl delete pvc alf-content-pvc -n $N
+#kubectl delete pvc alf-content-pvc -n $N
 
 helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set externalPort="443" \
@@ -1686,7 +1703,7 @@ kubectl get pvc -n $N
 ```
 ## este es el de prueba local de ajustes
 ```sh
-
+helm upgrade acs ./alfresco-content-services --install \
 helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set externalPort="443" \
 --set externalProtocol="https" \
@@ -1694,7 +1711,9 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set persistence.enabled=true \
 --set persistence.storageClass.enabled=true \
 --set persistence.storageClass.name="nfs-client" \
+--set alfresco-repository.persistence.existingClaim="alf-content-pvc" \
 --set alfresco-repository.persistence.enabled=true \
+--set alfresco-repository.image.tag="23.4.1" \
 --set postgresql.volumePermissions.enabled=true \
 --set global.alfrescoRegistryPullSecrets=quay-registry-secret \
 --set alfresco-sync-service.enabled=false \
@@ -1747,10 +1766,78 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 
 kubectl get pods -n $N
 kubectl get pvc -n $N
+export REPOPOD=acs-alfresco-repository-db4947df-42hwx 
+
+kubectl exec -it $REPOPOD -n $NAMESPACE -- /bin/bash
+
+helm uninstall acs -n $N
+
+kubectl get pods -n $N
+kubectl get pvc -n $N
+kubectl get storageclass
 
 
 ```
+## Error de EFS: 
+https://chatgpt.com/c/67aeba86-9d28-8006-9213-0991eccd077f
 
+estoy teniendo un problema con mi despliegue de alfresco con helm en AWS, estoy desplegando y me ocurre un error en mi pod de repository esto es por que estoy usando un EFS y aunque esta montado y tiene aceso no puede escribir con el usuario de alfresco 33000 en las carpetas del EFS, anteriormente lo solucione ingresando con una instancia independiente y montando el efs y luego asignando permisos, pero como estoy automatizando este tengo que hacer que esto se ejecute desde el git actions o directamente desde el chart, estoy viendo y por el lado del chart en alfresco-content-services/charts/alfresco-repository/values y alfresco-content-services/charts/alfresco-repository/templates/deployement.yaml, existe un initcontainer y un extraInitContainers, donde podria realizar la asignación de permisos, este es el error puntual la estructura de la carpeta va en la imagen y te comparto los archivos del chart, este es el log del pod:
+
+
+Para automatizar la asignación de permisos en el EFS (de modo que el usuario 33000 del contenedor de Alfresco pueda escribir en alf_data), lo más práctico es añadir un init container que se ejecute antes de que arranque el contenedor principal y realice el chown/chmod correspondiente sobre la carpeta montada.
+
+En el values.yaml de tu chart (por ejemplo en la sección extraInitContainers que ya se ve declarada como un array vacío []), puedes añadir algo como lo siguiente:
+
+```yaml
+extraInitContainers:
+  - name: init-permissions
+    image: busybox:1.37.0
+    # Asegúrate de ejecutar como root si tu podSecurityContext obliga a non-root:
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+    command: ["/bin/sh"]
+    args:
+      - "-c"
+      - |
+        echo "Cambiando permisos en EFS..."
+        chown -R 33000:1000 /usr/local/tomcat/alf_data
+        chmod -R 0775 /usr/local/tomcat/alf_data
+    volumeMounts:
+      - name: data
+        mountPath: /usr/local/tomcat/alf_data
+        subPath: alfresco-content-services/repository-data
+```
+Algunos puntos importantes:
+
+Uso de securityContext
+Como en tu values.yaml se ve que usas podSecurityContext con runAsNonRoot: true, necesitarás sobreescribirlo en el init container para poder hacer chown. De lo contrario, el init container también se ejecutaría como usuario 33000 y no tendría permisos para cambiar la propiedad de los ficheros. Por eso se añade:
+
+```yaml
+securityContext:
+  runAsUser: 0
+  runAsGroup: 0
+```
+Ruta de montaje
+Asegúrate de que el mountPath y el subPath coincidan con lo que usas en el contenedor principal. En tu caso, según el values.yaml, la carpeta se monta en:
+
+```yaml
+persistence:
+  data:
+    mountPath: /usr/local/tomcat/alf_data
+    subPath: alfresco-content-services/repository-data
+```
+
+Por ello, en el init container también lo montamos de la misma forma para poder hacer el chown y chmod.
+
+Root squash en EFS
+Si EFS está configurado con root squash y no te deja cambiar el propietario ni siquiera como root, tendrás que revisar la configuración del EFS (por ejemplo, usar no_root_squash o bien montar la carpeta con UID/GID ya adecuados). Pero si hasta ahora te funcionaba hacerlo manualmente desde una instancia EC2, probablemente el init container con runAsUser: 0 también podrá.
+
+Dónde colocar esta configuración
+
+Basta con poner el bloque extraInitContainers: en tu values.yaml tal como se ve arriba.
+El deployment.yaml (plantilla Helm) ya contempla un range .Values.extraInitContainers que inyecta todo lo que declares allí como contenedores de inicialización adicionales.
+Con esto, cada vez que levantes el deployment con Helm, el init container se encargará de dejar la carpeta del EFS con la propiedad y permisos correctos para que el usuario 33000:1000 del contenedor principal de Alfresco pueda escribir sin problemas. De esa forma no tendrás que hacerlo manualmente ni depender de SSH a una instancia para montar el EFS y ejecutar chown.
 ## instalación de ACS - HELM con S3
 S3:
 
@@ -1864,7 +1951,7 @@ kubectl get svc -n alfresco
 kubectl get pods -n alfresco 
 kubectl logs acs-postgresql-acs-0 -n alfresco
 kubectl describe pod acs-alfresco-repository-f9f5b9fc5-66jw6 -n alfresco
-kubectl get events -n alfresco | grep repository
+kubectl get events -n $N | grep repository
 
 # Validar evento de error relacionado con EBS
 kubectl get pv
@@ -1876,6 +1963,12 @@ Para conectarse a un pod específico y ejecutar comandos dentro de él, siga est
 
 1. **Ejecutar el comando `kubectl exec`**:
 ```bash
+
+export REPOPOD=acs-alfresco-repository-db4947df-42hwx 
+
+kubectl exec -it $REPOPOD -n $NAMESPACE -- /bin/bash
+
+
 kubectl exec -it acs-alfresco-repository-db4947df-drjjm -n $NAMESPACE -- /bin/bash
 
 kubectl exec -it acs-postgresql-acs-0 -n $NAMESPACE -- /bin/bash

@@ -200,7 +200,7 @@ serviceAccount:
   name: "alfresco-repo-sa"
 podAnnotations: {}
 podSecurityContext:
-  runAsNonRoot: true
+#  runAsNonRoot: true
   runAsUser: 33000
   runAsGroup: 1000
   fsGroup: 1000
@@ -296,7 +296,28 @@ autoscaling:
 extraVolumes: []
 extraVolumeMounts: []
 extraSideContainers: []
-extraInitContainers: []
+extraInitContainers:
+  - name: init-fs
+    image: "busybox:1.37.0"
+    securityContext:
+        runAsUser: 0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: "5Mi"
+      limits:
+        memory: "10Mi"
+    command: ["/bin/sh"]
+    args:
+      - "-c"
+      - |
+        echo "Cambiando permisos en EFS..."
+        chown -R 33000:1000 /usr/local/tomcat/alf_data
+        chmod -R 0775 /usr/local/tomcat/alf_data
+    volumeMounts:
+      - name: data
+        mountPath: /usr/local/tomcat/alf_data
+        subPath: alfresco-content-services/repository-data
 command: []
 args: []
 nodeSelector: {}
