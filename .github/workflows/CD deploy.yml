@@ -320,7 +320,7 @@ jobs:
 # Este comando despliega el controlador de Ingress NGINX en tu clúster de Kubernetes y configura automáticamente un balanceador de carga en AWS (con certificado SSL en el puerto 443) que enruta las peticiones hacia el Ingress Controller. Así, cualquier solicitud que llegue al dominio configurado (por ejemplo, acs.tfmfc.com) se redirige internamente a los pods de Alfresco o de otras aplicaciones, permitiendo exponerlos de forma segura y unificada.
     - name: Install Ingress Controller
       run: |
-        helm upgrade acs-ingress ingress-nginx/ingress-nginx --install\
+        helm upgrade acs-ingress ingress-nginx/ingress-nginx --install \
         --set controller.scope.enabled=true \
         --set controller.scope.namespace=$NAMESPACE \
         --set rbac.create=true \
