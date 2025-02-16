@@ -139,12 +139,12 @@ jobs:
         eksctl delete addon \
         --name aws-ebs-csi-driver \
         --cluster $EKS_CLUSTER_NAME \
-        --region $AWS_REGION
+        --region $AWS_REGION || true
 
         eksctl delete iamserviceaccount \
         --name ebs-csi-controller-sa \
         --namespace kube-system \
-        --cluster $EKS_CLUSTER_NAME
+        --cluster $EKS_CLUSTER_NAME || true
 
 #        eksctl delete iamserviceaccount \
 #        --cluster $EKS_CLUSTER_NAME \
