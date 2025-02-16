@@ -264,7 +264,7 @@ jobs:
         kubectl get configmap external-dns-config -n kube-system
         kubectl describe configmap external-dns-config -n kube-system
         kubectl get pods -n kube-system -l app=external-dns
-        timeout 60 kubectl logs deploy/external-dns -n kube-system -f
+        timeout 30 kubectl logs deploy/external-dns -n kube-system -f || true
 
 # esto no es necesario por que en terraform se esta asignando el rol con todo ya definido
 #    - name: Configure IAM Role for NodeGroup
