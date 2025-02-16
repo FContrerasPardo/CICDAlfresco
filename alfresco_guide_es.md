@@ -635,6 +635,12 @@ Esto se recomienda hacerlo cuando el clúster ya no existe o cuando se está seg
         --namespace kube-system \
         --cluster $EKS_CLUSTER_NAME
 
+        eksctl delete iamserviceaccount \
+        --name  external-dns \
+        --namespace kube-system \
+        --cluster $EKS_CLUSTER_NAME
+
+
 
         aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME
         aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole_$EKS_CLUSTER_NAME

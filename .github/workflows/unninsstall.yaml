@@ -95,6 +95,20 @@ jobs:
     - name: Uninstall ACS Ingress Helm Chart
       run: |
           helm uninstall acs-ingress -n $NAMESPACE  
+          kubectl delete role acs:psp -n ${NAMESPACE}
+          kubectl delete rolebinding acs:psp:default -n ${NAMESPACE}
+          kubectl delete rolebinding acs:psp:acs-ingress -n ${NAMESPACE}
+    - name: Uninstall External DNS
+      run: |
+          kubectl delete deployment external-dns -n kube-system
+          eksctl delete iamserviceaccount \
+          --name  external-dns \
+          --namespace kube-system \
+          --cluster $EKS_CLUSTER_NAME
+          kubectl delete serviceaccount external-dns -n kube-system
+          kubectl delete clusterrole external-dns -n kube-system
+          kubectl delete clusterrolebinding external-dns-viewer -n kube-system
+          kubectl delete configmap external-dns-config -n kube-system
 #          helm delete acs-ingress -n $NAMESPACE
 
        

@@ -247,6 +247,7 @@ jobs:
       working-directory: ./files
       run: |
         kubectl apply -f external-dns.yaml
+    
     - name: Create External DNS Service Account
       run: | 
         eksctl create iamserviceaccount \
@@ -256,12 +257,14 @@ jobs:
         --attach-policy-arn arn:aws:iam::aws:policy/AmazonRoute53FullAccess \
         --approve \
         --override-existing-serviceaccounts
+        kubectl rollout restart deployment external-dns -n kube-system
 
     - name: Verify External DNS
       run: |
         kubectl get configmap external-dns-config -n kube-system
         kubectl describe configmap external-dns-config -n kube-system
         kubectl get pods -n kube-system -l app=external-dns
+        timeout 60 kubectl logs deploy/external-dns -n kube-system -f
 
 # esto no es necesario por que en terraform se esta asignando el rol con todo ya definido
 #    - name: Configure IAM Role for NodeGroup
@@ -335,6 +338,7 @@ jobs:
         --set controller.ingressClassResource.name="nginx" \
         --set controller.ingressClassByName=true \
         --atomic --namespace $NAMESPACE
+
     - name: Verify Ingress Controller pods
       run: | 
         kubectl get pods -n ${NAMESPACE}
@@ -415,7 +419,7 @@ jobs:
 
     - name: Watch Helm deployment
       env:
-        HELM_INSTALL_TIMEOUT: 10m
+        HELM_INSTALL_TIMEOUT: 20m
       run: |
         kubectl get pods --watch -n $NAMESPACE &
         KWPID=$!
