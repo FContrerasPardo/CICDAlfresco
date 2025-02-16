@@ -202,7 +202,8 @@ aws configure
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
-  export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
+  export DOMAIN_NAME=tfmfc.com
+  export NODEGROUP_NAME=$(eksctl get nodegroup --cluster $EKS_CLUSTER_NAME -o json | jq -r '.[0].Name')
   export ACS_HOSTNAME=acs.$DOMAIN
 
 
@@ -223,7 +224,8 @@ aws configure
   export QUAY_USERNAME=fc7430
   export QUAY_PASSWORD=Bunny2024!
   export DOMAIN=tfmfc.com
-  export NODEGROUP_NAME=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --output text)
+  export DOMAIN_NAME=tfmfc.com
+  export NODEGROUP_NAME=$(eksctl get nodegroup --cluster $EKS_CLUSTER_NAME -o json | jq -r '.[0].Name')
   export ACS_HOSTNAME=acs.$DOMAIN
 
    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -770,10 +772,9 @@ eksctl create addon \
   --service-account-role-arn "$ROLE_ARN" \
   --force 
 
-
 aws eks describe-nodegroup \
   --cluster-name $EKS_CLUSTER_NAME \
-  --nodegroup-name <NODEGROUP_NAME> \
+  --nodegroup-name $NODEGROUP_NAME \
   --query "nodegroup.nodeRole" \
   --output text
 ```
@@ -1039,6 +1040,10 @@ Luego, revisa las políticas adjuntas al rol:
 ```sh
 aws iam list-attached-role-policies --role-name eksctl-alfrescom-nodegroup-ng-097d-NodeInstanceRole-jEOLvGAbsSlK
 aws iam list-attached-role-policies --role-name eksctl-alfresco-nodegroup
+
+aws iam list-role-policies \
+  --role-name eksctl-alfresco-nodegroup
+
 ```
 Adjuntar la política requerida: Asegúrate de que el rol IAM tenga la política AmazonEFSCSIDriverPolicy adjunta. Si no está adjunta, ejecútala:
 ```sh
@@ -1253,6 +1258,7 @@ AmazonRoute53FullAccess
 
 ### Troubleshooting
 
+#### Error de Comando
 Error de Comando original: 
 ```sh
 kubectl apply -f external-dns.yaml -n kube-system
@@ -1329,6 +1335,55 @@ se corrige cambiando la versión dentro del archivo:
          - --txt-owner-id=acs-deployment
          - --log-level=debug
 ```
+#### Error de acceso del DNS
+Se usa el comando para obtener el log con el error 
+```sh
+kubectl logs deploy/external-dns -n kube-system -f
+level=error msg="records retrieval failed: failed to list hosted zones: NoCredentialProviders: no valid providers in chain. Deprecated.\n\tFor verbose messaging see aws.Config.CredentialsChainVerboseErrors"
+```
+al ejecutar el comando del para velidar el service account, se encuentra que  el ServiceAccount "external-dns" no tiene la anotación de IRSA, por lo que el pod no obtiene credenciales específicas para ExternalDNS. Aunque el rol de los nodos tiene la política necesaria, ExternalDNS usa el token del ServiceAccount, y sin la anotación IRSA, no se asume el rol de IAM adecuado.:
+
+```bash
+kubectl get serviceaccount external-dns -n kube-system -o yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"annotations":{},"name":"external-dns","namespace":"kube-system"}}
+  creationTimestamp: "2025-02-15T17:12:21Z"
+  name: external-dns
+  namespace: kube-system
+  resourceVersion: "1905"
+  uid: aa41ddcf-81e7-4328-ae68-45093aba1c3c
+```
+Para solucionarlo, debes asociar un rol de IAM (con los permisos de Route53) al ServiceAccount "external-dns". Hay dos opciones:
+
+1. Parchar el ServiceAccount existente
+Puedes anotar el ServiceAccount para que incluya el ARN del rol de IAM que hayas creado para ExternalDNS (o usar AmazonRoute53FullAccess si lo deseas). Por ejemplo, si ya tienes el rol creado (por ejemplo, con ARN:
+arn:aws:iam::<tu-cuenta>:role/ExternalDNS-Role), ejecuta:
+
+```bash
+kubectl annotate serviceaccount external-dns -n kube-system eks.amazonaws.com/role-arn=arn:aws:iam::<tu-cuenta>:role/ExternalDNS-Role --overwrite
+```
+
+2. Crear o actualizar el ServiceAccount mediante IRSA con eksctl (esta opción fue la que funcionó)
+Si prefieres crear uno nuevo o actualizarlo automáticamente, usa el siguiente comando (ajusta los valores según corresponda):
+```sh
+eksctl create iamserviceaccount \
+  --cluster $EKS_CLUSTER_NAME \
+  --namespace kube-system \
+  --name external-dns \
+  --attach-policy-arn arn:aws:iam::aws:policy/AmazonRoute53FullAccess \
+  --approve \
+  --override-existing-serviceaccounts
+```
+Este comando creará (o actualizará) el ServiceAccount "external-dns" en el namespace "kube-system" y le asignará la anotación necesaria para que ExternalDNS use IRSA y, por tanto, obtenga las credenciales adecuadas.
+
+Una vez hecho esto, reinicia el deployment de ExternalDNS para que los pods tomen la nueva configuración y verifica nuevamente los logs. Deberías ver que ExternalDNS ya puede listar y actualizar los registros en Route53.
+```sh
+kubectl rollout restart deployment external-dns -n kube-system
+```
 
 ## Ingress
 
@@ -1356,11 +1411,15 @@ kubectl get pods --namespace=ingress-nginx
 
 #### Paso 1: Crear el Cluster Rol para el ingress en el namespace
 
+El término "Ingress RBAC" se refiere a la configuración de permisos (roles y vinculaciones de roles) necesarios para que el controlador de Ingress (como el Ingress NGINX) pueda acceder y operar sobre los recursos de Kubernetes (servicios, endpoints, pods, etc.) que utiliza para enrutar el tráfico. Esto se define mediante objetos de tipo ClusterRole y ClusterRoleBinding en Kubernetes, y permite que el controlador pueda listar, ver y monitorear las reglas de Ingress, así como otros recursos relacionados.
+    
 ```sh
 # Manual
  envsubst < ~/environment/CICDAlfresco/files/ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
 # CodeBuild
 - envsubst < $CODEBUILD_SRC_DIR/files/ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
+#git actions
+envsubst < ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
 ```
 
 esto importante para que pueda registrar el nuevo acs-ingress: 
@@ -1382,7 +1441,7 @@ helm repo update
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" \
-  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN_NAME}" \
+  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
   --set controller.publishService.enabled=true \
   --set controller.ingressClassResource.name="$NAMESPACE-nginx" \
@@ -1398,7 +1457,7 @@ helm repo update
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" \
-  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN_NAME}" \
+  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
   --set controller.publishService.enabled=true \
   --set controller.ingressClassResource.name="$NAMESPACE-nginx" \
@@ -1412,9 +1471,70 @@ kubectl get service --namespace alfresco acs-ingress-ingress-nginx-controller --
 
 #### ERRORES CORREGIDOS:
 - Error de versión: se corrige usando la versión más actualizada del ingres en helm
+
+##### Error de ingressClassResource con multiples clusters
 - Error de despliegue con multriples clusters: El error ocurre porque el IngressClass ya existe en el clúster y está asociado a otra instalación de Helm (acs-ingress-m en el namespace alfrescom). Esto sucede porque el IngressClass es un recurso global, no específico de un namespace, y Helm intenta tomar el control de ese recurso, pero detecta que ya pertenece a otra release.
 
+**IMPORTANTE** Esta configuració hace que el controlador del acs-ingress-ingress-nginx-controller, no logre resolver, VER SIGUIENTE ERROR:
 
+##### El controlador del Nginx no puede resolver los ingress de alfresco
+tras desplegar correctamente alfresco y validar el DNS que este correctamente apuntado, se instala el LoB y se valida su configuración de acceso por 443 y su certificado, el problema sigue persistente por lo que se valida el controlador del ingress y se encuentra lo siguiente:
+```SH
+kubectl get deployments -n $N  
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE 
+acs-ingress-ingress-nginx-controller   1/1     1            1           11m
+
+kubectl logs deploy/acs-ingress-alfresco-cluster-ingress-nginx-controller -n $N -f
+kubectl logs deploy/acs-ingress-ingress-nginx-controller -n $N -f
+LOG: "Ignoring ingress because of error while validating ingress class" ingress="alfresco1/acs-alfresco-cc" error="no object matching key \"nginx\" in local store"
+```
+
+Eso significa que tus Ingress (acs-alfresco-cc, acs-alfresco-dw, etc.) están haciendo referencia a una IngressClass llamada “nginx”, pero en tu clúster no existe una IngressClass con ese nombre. Por eso el controlador los ignora y no enruta nada.
+
+En Kubernetes 1.19+ se introdujo el campo ingressClassName en el objeto Ingress. Cuando especificas ingressClassName: "nginx" (o usas la anotación kubernetes.io/ingress.class: "nginx"), el controlador busca una IngressClass llamada “nginx”. Si no la encuentra, ignora el Ingress.
+
+En tu caso, al instalar el Ingress NGINX con Helm, definiste:
+``` SH
+--set controller.ingressClassResource.name="$NAMESPACE-nginx"
+--set controller.ingressClassByName=true
+--set controller.scope.enabled=true
+```
+Eso crea una IngressClass llamada “alfresco1-nginx” (suponiendo que $NAMESPACE = “alfresco1”). Entonces tus Ingress deberían usar ingressClassName: alfresco1-nginx en lugar de nginx. De lo contrario, el controlador no los va a procesar.
+
+
+```SH
+helm install acs-ingress-$EKS_CLUSTER_NAME ingress-nginx/ingress-nginx \
+  --set controller.scope.enabled=true \
+  --set controller.scope.namespace=$NAMESPACE \
+  --set rbac.create=true \
+  --set controller.config."proxy-body-size"="100m" \
+  --set controller.service.targetPorts.https=80 \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" \
+  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
+  --set controller.publishService.enabled=true \
+  --set controller.ingressClassResource.name="nginx" \
+  --set controller.ingressClassByName=true \
+  --atomic --namespace $NAMESPACE
+
+  helm install acs-ingress ingress-nginx/ingress-nginx \
+  --set controller.scope.enabled=true \
+  --set controller.scope.namespace=$NAMESPACE \
+  --set rbac.create=true \
+  --set controller.config."proxy-body-size"="100m" \
+  --set controller.service.targetPorts.https=80 \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" \
+  --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
+  --set controller.publishService.enabled=true \
+  --set controller.ingressClassResource.name="nginx" \
+  --set controller.ingressClassByName=true \
+  --atomic --namespace $NAMESPACE
+```
 # Creación del Bucket S3 (opcional)
 
 ### Paso 1: Crear el Bucket en AWS S3
@@ -1708,6 +1828,7 @@ helm install acs ~/environment/CICDAlfresco/alfresco-content-services \
 --set externalPort="443" \
 --set externalProtocol="https" \
 --set externalHost="acs.${DOMAIN}" \
+--set global.known_urls=https://acs.${DOMAIN} \
 --set persistence.enabled=true \
 --set persistence.storageClass.enabled=true \
 --set persistence.storageClass.name="nfs-client" \

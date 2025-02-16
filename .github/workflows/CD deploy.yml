@@ -247,6 +247,15 @@ jobs:
       working-directory: ./files
       run: |
         kubectl apply -f external-dns.yaml
+    - name: Create External DNS Service Account
+      run: | 
+        eksctl create iamserviceaccount \
+        --cluster $EKS_CLUSTER_NAME \
+        --namespace kube-system \
+        --name external-dns \
+        --attach-policy-arn arn:aws:iam::aws:policy/AmazonRoute53FullAccess \
+        --approve \
+        --override-existing-serviceaccounts
 
     - name: Verify External DNS
       run: |
@@ -301,15 +310,31 @@ jobs:
 #
 #        helm delete ingress-nginx -n ingress-nginx
 
+
+#   El término "Ingress RBAC" se refiere a la configuración de permisos (roles y vinculaciones de roles) necesarios para que el controlador de Ingress (como el Ingress NGINX) pueda acceder y operar sobre los recursos de Kubernetes (servicios, endpoints, pods, etc.) que utiliza para enrutar el tráfico. Esto se define mediante objetos de tipo ClusterRole y ClusterRoleBinding en Kubernetes, y permite que el controlador pueda listar, ver y monitorear las reglas de Ingress, así como otros recursos relacionados.
     - name: Apply Ingress RBAC configuration
       working-directory: ./files
       run: |
         envsubst < ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
 
+# Este comando despliega el controlador de Ingress NGINX en tu clúster de Kubernetes y configura automáticamente un balanceador de carga en AWS (con certificado SSL en el puerto 443) que enruta las peticiones hacia el Ingress Controller. Así, cualquier solicitud que llegue al dominio configurado (por ejemplo, acs.tfmfc.com) se redirige internamente a los pods de Alfresco o de otras aplicaciones, permitiendo exponerlos de forma segura y unificada.
     - name: Install Ingress Controller
       run: |
-        helm upgrade acs-ingress ingress-nginx/ingress-nginx --install --set controller.scope.enabled=true --set controller.scope.namespace=$NAMESPACE --set rbac.create=true --set controller.config."proxy-body-size"="100m" --set controller.service.targetPorts.https=80 --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" --set controller.publishService.enabled=true --set controller.ingressClassResource.name="$NAMESPACE-nginx" --set controller.ingressClassByName=true --atomic --namespace $NAMESPACE
-        
+        helm upgrade acs-ingress ingress-nginx/ingress-nginx --install\
+        --set controller.scope.enabled=true \
+        --set controller.scope.namespace=$NAMESPACE \
+        --set rbac.create=true \
+        --set controller.config."proxy-body-size"="100m" \
+        --set controller.service.targetPorts.https=80 \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"="http" \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"="https" \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="${CERTIFICATE_ARN}" \
+        --set controller.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"="acs.${DOMAIN}" \
+        --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-negotiation-policy"="ELBSecurityPolicy-TLS-1-2-2017-01" \
+        --set controller.publishService.enabled=true \
+        --set controller.ingressClassResource.name="nginx" \
+        --set controller.ingressClassByName=true \
+        --atomic --namespace $NAMESPACE
     - name: Verify Ingress Controller pods
       run: | 
         kubectl get pods -n ${NAMESPACE}
@@ -331,6 +356,7 @@ jobs:
         --set externalPort="443" \
         --set externalProtocol="https" \
         --set externalHost="acs.${DOMAIN}" \
+        --set global.known_urls=https://acs.${DOMAIN} \
         --set persistence.enabled=true \
         --set persistence.storageClass.enabled=true \
         --set persistence.storageClass.name="nfs-client" \
@@ -386,15 +412,16 @@ jobs:
         --set alfresco-search-enterprise.reindexing.enabled=false \
         --timeout 20m0s \
         --namespace=$NAMESPACE
-    
+
     - name: Watch Helm deployment
       env:
         HELM_INSTALL_TIMEOUT: 10m
       run: |
-        kubectl get pods --watch &
+        kubectl get pods --watch -n $NAMESPACE &
         KWPID=$!
-        kubectl wait --timeout=5m --all=true --for=condition=Ready pods
+        kubectl wait --timeout=5m --all=true --for=condition=Ready pods -n $NAMESPACE
         kill $KWPID
+      continue-on-error: true
 
     - name: Debug cluster status after install
       if: always() && steps.helm_install.outcome != 'skipped'

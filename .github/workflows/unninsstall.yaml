@@ -123,7 +123,7 @@ jobs:
         eksctl delete addon \
         --name aws-ebs-csi-driver \
         --cluster $EKS_CLUSTER_NAME \
-        --region $REGION
+        --region $AWS_REGION
 
         eksctl delete iamserviceaccount \
         --name ebs-csi-controller-sa \
@@ -153,7 +153,7 @@ jobs:
         fi
 
         # Formamos el ARN completo
-        PROVIDER_ARN="arn:aws:iam::$ACCOUNT_ID:oidc-provider/oidc.eks.$REGION.amazonaws.com/id/$CLUSTER_ISSUER"
+        PROVIDER_ARN="arn:aws:iam::$ACCOUNT_ID:oidc-provider/oidc.eks.$AWS_REGION.amazonaws.com/id/$CLUSTER_ISSUER"
 
         echo "OIDC Provider ARN -> $PROVIDER_ARN"
         # Guardamos la variable en el entorno de Actions
