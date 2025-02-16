@@ -169,7 +169,7 @@ jobs:
         fi
 
         # Formamos el ARN completo
-        PROVIDER_ARN="arn:aws:iam::$ACCOUNT_ID:oidc-provider/oidc.eks.$AWS_REGION.amazonaws.com/id/$CLUSTER_ISSUER"
+        PROVIDER_ARN="arn:aws:iam::$AWS_ACCOUNT_ID:oidc-provider/oidc.eks.$AWS_REGION.amazonaws.com/id/$CLUSTER_ISSUER"
 
         echo "OIDC Provider ARN -> $PROVIDER_ARN"
         # Guardamos la variable en el entorno de Actions
