@@ -91,10 +91,10 @@ jobs:
     
 
     - name: Uninstall ACS Helm Chart
-      run: helm uninstall acs --namespace $NAMESPACE  
+      run: helm uninstall acs --namespace $NAMESPACE || true
     - name: Uninstall ACS Ingress Helm Chart
       run: |
-          helm uninstall acs-ingress -n $NAMESPACE  
+          helm uninstall acs-ingress -n $NAMESPACE || true
           kubectl delete role acs:psp -n ${NAMESPACE}
           kubectl delete rolebinding acs:psp:default -n ${NAMESPACE}
           kubectl delete rolebinding acs:psp:acs-ingress -n ${NAMESPACE}
