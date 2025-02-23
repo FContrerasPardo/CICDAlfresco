@@ -178,12 +178,8 @@ jobs:
     # 3) Eliminar el OIDC Provider de IAM
     - name: Delete OIDC Provider
       run: |
-        if [ -z "${{ env.OIDC_ARN }}" ]; then
-          echo "No OIDC ARN found. Skipping delete."
-        else
-          echo "Deleting OIDC provider ${{ env.OIDC_ARN }}"
-          aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "${{ env.OIDC_ARN }}"
-        fi
+        echo "Deleting OIDC provider ${{ env.OIDC_ARN }}"
+        aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "${{ env.OIDC_ARN }}" || true
 
     - name: Delete all PVCs
       run: kubectl delete pvc --all -n $NAMESPACE  

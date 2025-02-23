@@ -1,9 +1,0 @@
-{{- if .Values.dtas.enabled -}}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dtas-config
-data:
-  config.json: |
-  {{- tpl (toYaml .Values.dtas.config) $ | fromYaml | toJson | nindent 4 -}}
-{{- end -}}

@@ -3,7 +3,7 @@ name: CD - Deploy Alfresco to Amazon EKS
 on:
   push:
     branches:
-      - main
+      - Deployement
 
 env:
   # Credentials for deployment to AWS
@@ -41,7 +41,6 @@ jobs:
     defaults:
       run:
         shell: bash
-#        working-directory: ./CICDAlfresco
 
     steps:
     - name: Checkout source code
@@ -72,41 +71,32 @@ jobs:
   # terraform:
     - name: Setup Terraform with specified version on the runner
       uses: hashicorp/setup-terraform@v2
-      # with:
-        # terraform_version: 1.6.3
-
     - name: Terraform init
       id: init
       working-directory: ./Terraform
       run: terraform init 
-
     - name: Terraform validate
       id: validate
       working-directory: ./Terraform
       run: terraform validate
-
     - name: Terraform plan
       id: plan
       working-directory: ./Terraform
       run: terraform plan -var="aws_region=$AWS_REGION" -var="cluster_name=$EKS_CLUSTER_NAME" -var="cluster_service_role_arn=$EKS_SERVICE_ROLE_ARN" -var="node_role_arn=$NODE_ROLE_ARN" -no-color -input=false -out planfile
       continue-on-error: true
-
     - name: Terraform plan status
       if: steps.plan.outcome == 'failure'
       run: exit 1
-
     - name: Terraform Apply
       id: apply
       working-directory: ./Terraform
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform apply -auto-approve planfile
-
     - name: Get outputs
       uses: dflook/terraform-output@v1
       id: tf-outputs
       with:
         path: ./Terraform
-
     - name: Print Outputs
       run: |
         echo "VPC_ID=${{steps.tf-outputs.outputs.vpc_id}}"
@@ -124,13 +114,11 @@ jobs:
       id: getconfig
       if: steps.apply.outcome == 'success'
       run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
-  
     - name: Create namespace
       if: steps.getconfig.outcome == 'success'
       run: |
         kubectl get namespace ${NAMESPACE} || \
-        kubectl create namespace ${NAMESPACE}
-        
+        kubectl create namespace ${NAMESPACE}       
     - name: associate IAM OIDC provider
       run: |
         eksctl utils associate-iam-oidc-provider --cluster=$EKS_CLUSTER_NAME --region $AWS_REGION  --approve
@@ -144,16 +132,6 @@ jobs:
           --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
           --override-existing-serviceaccounts \
           --approve
-#    - name: Create IAM role for EBS CSI Driver
-#      run: |
-#       eksctl create iamserviceaccount \
-#       --name ebs-csi-controller-sa \
-#       --namespace kube-system \
-#       --cluster $EKS_CLUSTER_NAME \
-#       --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
-#       --approve \
-#       --role-only \
-#       --role-name AmazonEKS_EBS_CSI_DriverRole
     - name: Get EBS CSI Role ARN from ServiceAccount
       id: get-ebs-csi-role
       run: |
@@ -181,73 +159,43 @@ jobs:
           --region $AWS_REGION \
           --service-account-role-arn "${{ env.ROLE_ARN }}" \
           --force        
-#    - name: Setup EBS CSI Driver Just to have it if not exits
-#      run: |
-#        eksctl get addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION || \
-#        eksctl create addon --name aws-ebs-csi-driver --cluster $EKS_CLUSTER_NAME --region $AWS_REGION --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
-
     - name: Setup Default Driver
       run: |
         kubectl patch storageclass gp2 \
           -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-
-#     Si se desea almacenar todo en EFS por defecto 
-#      # primero desmarcas gp2 si estuviera default
-#      kubectl patch storageclass gp2 \
-#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}' \
-#        || true
-##     # luego marcas alfresco-efs-sc como default
-#      kubectl patch storageclass alfresco-efs-sc \
-#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-
-##     Si se desea almacenar todo en nfs-client por defecto 
-#      1) Quitar la anotación de default al SC que hoy está como default (en tu caso, alfresco-efs-sc)
-#      kubectl patch storageclass alfresco-efs-sc \
-#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
-#            
-#      # 2) Marcar como default el SC “nfs-client”
-#      kubectl patch storageclass nfs-client \
-#        -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-
     - name: Add EFS CSI Driver Helm repo
       run: |
         helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver
         helm repo update
-
     - name: Install EFS CSI Driver
       working-directory: ./files
       run: |
         envsubst < aws-efs-values.yml | helm upgrade aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --install --namespace kube-system -f -
         kubectl get pod -n kube-system -l "app.kubernetes.io/name=aws-efs-csi-driver,app.kubernetes.io/instance=aws-efs-csi-driver"
-
     - name: Create EFS StorageClass
       working-directory: ./files
       run: |
         if ! kubectl get storageclass -n ${NAMESPACE} 2>/dev/null | grep -q "alfresco-efs-sc"; then
           envsubst < alf-efs-storage-class.yaml | kubectl create -f -
         fi
-      continue-on-error: true
-      
+      continue-on-error: true 
     - name: Create EFS Persistent Volume
       working-directory: ./files
       run: |
           kubectl get pv -n ${NAMESPACE} | grep -q "alf-content-pv" || \
           envsubst < alf-content-persistence-volume.yaml | kubectl apply -f -
-      continue-on-error: true
-      
+      continue-on-error: true  
     - name: Create EFS Persistent Volume Claim
       working-directory: ./files
       run: |
         kubectl get pvc -n ${NAMESPACE} | grep -q "alf-content-pvc" || \
         envsubst < alf-content-persistence-volume-claim.yaml | kubectl create -f -
       continue-on-error: true
-
-    # External DNS Configuration and Load Balancer
+  # External DNS Configuration and Load Balancer
     - name: Apply External DNS configuration
       working-directory: ./files
       run: |
-        kubectl apply -f external-dns.yaml
-    
+        kubectl apply -f external-dns.yaml   
     - name: Create External DNS Service Account
       run: | 
         eksctl create iamserviceaccount \
@@ -258,69 +206,20 @@ jobs:
         --approve \
         --override-existing-serviceaccounts
         kubectl rollout restart deployment external-dns -n kube-system
-
     - name: Verify External DNS
       run: |
         kubectl get configmap external-dns-config -n kube-system
         kubectl describe configmap external-dns-config -n kube-system
         kubectl get pods -n kube-system -l app=external-dns
         timeout 30 kubectl logs deploy/external-dns -n kube-system -f || true
-
-# esto no es necesario por que en terraform se esta asignando el rol con todo ya definido
-#    - name: Configure IAM Role for NodeGroup
-#        
-#      run: |
-#        # 1. Lista los Node Groups del clúster EKS
-#        NODEGROUP=$(aws eks list-nodegroups --cluster-name $EKS_CLUSTER_NAME --query "nodegroups[0]" --output text)
-#        
-#        if [ "$NODEGROUP" == "None" ]; then
-#          echo "No se encontró un grupo de nodos para el clúster $EKS_CLUSTER_NAME"
-#          exit 1
-#        fi
-#    
-#        echo "NodeGroup encontrado: $NODEGROUP"
-#    
-#        # 2. Encuentra el nombre del rol asociado al NodeGroup
-#        NODE_ROLE=$(aws eks describe-nodegroup --cluster-name $EKS_CLUSTER_NAME --nodegroup-name $NODEGROUP --query "nodegroup.nodeRole" --output text)
-#    
-#        if [ -z "$NODE_ROLE" ]; then
-#          echo "No se encontró un rol asociado al NodeGroup $NODEGROUP"
-#          exit 1
-#        fi
-#    
-#        echo "Rol de IAM encontrado: $NODE_ROLE"
-#    
-#        # 3. Adjunta la política administrada AmazonRoute53FullAccess al rol
-#        aws iam attach-role-policy --role-name $(basename $NODE_ROLE) --policy-arn arn:aws:iam::aws:policy/AmazonRoute53FullAccess
-#    
-#        echo "Política AmazonRoute53FullAccess adjuntada al rol $NODE_ROLE"
-
-
     - name: Add Ingress NGINX Helm repo
       run: |
         helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
         helm repo update
-
-    # Install Ingress Controller Generico
-#    - name: Install Ingress Controller
-#      working-directory: ./files
-#      run: |
-#        helm upgrade --install ingress-nginx ingress-nginx \
-#        --repo https://kubernetes.github.io/ingress-nginx \
-#        --namespace ingress-nginx --create-namespace \
-#        --version 4.7.2 \
-#        --set controller.allowSnippetAnnotations=true
-#
-#        helm delete ingress-nginx -n ingress-nginx
-
-
-#   El término "Ingress RBAC" se refiere a la configuración de permisos (roles y vinculaciones de roles) necesarios para que el controlador de Ingress (como el Ingress NGINX) pueda acceder y operar sobre los recursos de Kubernetes (servicios, endpoints, pods, etc.) que utiliza para enrutar el tráfico. Esto se define mediante objetos de tipo ClusterRole y ClusterRoleBinding en Kubernetes, y permite que el controlador pueda listar, ver y monitorear las reglas de Ingress, así como otros recursos relacionados.
     - name: Apply Ingress RBAC configuration
       working-directory: ./files
       run: |
         envsubst < ingress-rbac.yaml | kubectl apply -f - -n ${NAMESPACE}
-
-# Este comando despliega el controlador de Ingress NGINX en tu clúster de Kubernetes y configura automáticamente un balanceador de carga en AWS (con certificado SSL en el puerto 443) que enruta las peticiones hacia el Ingress Controller. Así, cualquier solicitud que llegue al dominio configurado (por ejemplo, acs.tfmfc.com) se redirige internamente a los pods de Alfresco o de otras aplicaciones, permitiendo exponerlos de forma segura y unificada.
     - name: Install Ingress Controller
       run: |
         helm upgrade acs-ingress ingress-nginx/ingress-nginx --install \
@@ -338,12 +237,10 @@ jobs:
         --set controller.ingressClassResource.name="nginx" \
         --set controller.ingressClassByName=true \
         --atomic --namespace $NAMESPACE
-
     - name: Verify Ingress Controller pods
       run: | 
         kubectl get pods -n ${NAMESPACE}
         kubectl get pods -n kube-system
-
     - name: Create Docker Registry Secret if not exists
       run: |
         kubectl get secret quay-registry-secret -n ${NAMESPACE} || \
@@ -352,7 +249,6 @@ jobs:
           --docker-username=$QUAY_USERNAME \
           --docker-password=$QUAY_PASSWORD \
           -n ${NAMESPACE}
-
     - name: Install Alfresco Content Services
       id : helm_install
       run: |
@@ -416,53 +312,40 @@ jobs:
         --set alfresco-search-enterprise.reindexing.enabled=false \
         --timeout 20m0s \
         --namespace=$NAMESPACE
-
     - name: Watch Helm deployment
       env:
         HELM_INSTALL_TIMEOUT: 20m
       run: |
         kubectl get pods --watch -n $NAMESPACE &
         KWPID=$!
-        kubectl wait --timeout=5m --all=true --for=condition=Ready pods -n $NAMESPACE
+        kubectl wait --timeout=${{ env.HELM_INSTALL_TIMEOUT }} --all=true --for=condition=Ready pods -n $NAMESPACE
         kill $KWPID
       continue-on-error: true
-
     - name: Debug cluster status after install
       if: always() && steps.helm_install.outcome != 'skipped'
       run: |
         helm ls --all-namespaces --all
         kubectl get all --all-namespaces
         kubectl describe pod
-
     - name: Verify Alfresco Content Services pods
       run: kubectl get pods -n ${NAMESPACE}
-
     - name: Output deployment details
       run: |
         echo "DOMAIN=$DOMAIN"
         echo "NAMESPACE=$NAMESPACE"
         echo "EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME"
         echo "Despliegue finalizado"
-
-#  bake:
-#    name: Deploy
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#    - name: Checkout
-#      uses: actions/checkout@v2
-#
-#    - name: Authenticate with Nexus
-#      run: |
-#        chmod +x ./Scripts/setup-netrc.sh
-#        ./Scripts/setup-netrc.sh
-#        echo "Validación del archivo .netrc completada"
-
-
-
-
-
-
-
-
-
+        echo "Alfresco Content Services URL: https://acs.${DOMAIN}"
+        echo "Alfresco Content Services Admin User: admin"
+        echo "Alfresco Content Services Admin Password: admin"
+        echo "Alfresco Content Services Database User: alfresco"
+        echo "Alfresco Content Services Database Password: alfresco"
+        echo "Alfresco Content Services Database Name: alfresco"
+        echo "Alfresco Content Services Database Host: postgresql"
+        echo "Alfresco Content Services Database Port: 5432"
+        echo "Alfresco Content Services Database URL: jdbc:postgresql://postgresql:5432/alfresco"
+        echo "Alfresco Content Services Database Admin User: postgres"
+        echo "Alfresco Content Services Database Admin Password: postgres"
+        echo "Alfresco Content Services Database Admin URL: jdbc:postgresql://postgresql:5432/postgres"
+        echo "Alfresco Content Services Database Admin Host: postgresql"
+        echo "Alfresco Content Services Database Admin Port: 5432"

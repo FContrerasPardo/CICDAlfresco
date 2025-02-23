@@ -2725,3 +2725,10 @@ helm install acs ./alfresco-content-services \
 --values ./acs-deployment-master/helm/alfresco-content-services/$UPSTREAM_HELM_VALUES 
 
 ```
+
+
+
+```bash
+Ignoring ingress because of error while validating ingress class: no object matching key "nginx" in local store
+
+```
