@@ -90,7 +90,7 @@ jobs:
     - name: Terraform Apply
       id: apply
       working-directory: ./Terraform
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == 'refs/heads/Deploy' && github.event_name == 'push'
       run: terraform apply -auto-approve planfile
     - name: Get outputs
       uses: dflook/terraform-output@v1

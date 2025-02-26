@@ -138,8 +138,6 @@ jobs:
       run: |
         echo "Deleting OIDC provider ${{ env.OIDC_ARN }}"
         aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "${{ env.OIDC_ARN }}" || true
-    - name: Delete all PVCs
-      run: kubectl delete pvc --all -n $NAMESPACE  
     - name: Delete all ConfigMaps
       run: kubectl delete configmap --all -n $NAMESPACE  
     - name: Delete all Secrets
