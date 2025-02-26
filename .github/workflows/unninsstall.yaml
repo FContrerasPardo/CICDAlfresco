@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       sure:
-          description: 'are you Sure to uninstall ACS? yes or no'
+          description: 'are you Sure to uninstall Alfresco? yes or no'
           required: true
           type: string
 
@@ -80,16 +80,6 @@ jobs:
       id: getconfig
       run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
 
-    - name: Setup Terraform with specified version on the runner
-      uses: hashicorp/setup-terraform@v2
-      # with:
-        # terraform_version: 1.6.3
-    - name: Terraform init
-      id: init
-      working-directory: ./Terraform
-      run: terraform init 
-    
-
     - name: Uninstall ACS Helm Chart
       run: helm uninstall acs --namespace $NAMESPACE || true
     - name: Uninstall ACS Ingress Helm Chart
@@ -111,28 +101,6 @@ jobs:
           kubectl delete clusterrolebinding external-dns-viewer -n kube-system || true
           kubectl delete configmap external-dns-config -n kube-system || true
       continue-on-error: true
-#          helm delete acs-ingress -n $NAMESPACE
-
-       
-#    - name: Uninstall EBS Service account and Role
-#      run: |
-#        aws iam list-roles | grep AmazonEKS_EBS_CSI_DriverRole
-#        aws iam list-attached-role-policies --role-name AmazonEKS_EBS_CSI_DriverRole
-#        aws iam detach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
-#        aws iam delete-role --role-name AmazonEKS_EBS_CSI_DriverRole
-#        kubectl get serviceaccount -n kube-system
-#        kubectl delete serviceaccount ebs-csi-controller-sa -n kube-system
-#        kubectl delete serviceaccount ebs-csi-controller-sa -n $NAMESPACE
-#        eksctl delete iamserviceaccount \
-#        --name ebs-csi-controller-sa \
-#        --namespace kube-system \
-#        --cluster $EKS_CLUSTER_NAME
-#
-#        eksctl get addon  --cluster $EKS_CLUSTER_NAME 
-#        eksctl delete addon \
-#        --name aws-ebs-csi-driver \
-#        --cluster $EKS_CLUSTER_NAME \
-#        --region $REGION
     - name: Uninstall EBS Service account and Role
       run: |
         eksctl get addon  --cluster $EKS_CLUSTER_NAME 
@@ -145,14 +113,6 @@ jobs:
         --name ebs-csi-controller-sa \
         --namespace kube-system \
         --cluster $EKS_CLUSTER_NAME || true
-
-#        eksctl delete iamserviceaccount \
-#        --cluster $EKS_CLUSTER_NAME \
-#        --region AWS_REGION \
-#        --name ebs-csi-controller-sa \
-#        --namespace kube-system
-
-      # 2) Obtener el ARN del OIDC Provider ANTES de borrar el clúster
     - name: Retrieve OIDC Provider ARN
       id: retrieve-oidc
       run: |
@@ -174,19 +134,22 @@ jobs:
         echo "OIDC Provider ARN -> $PROVIDER_ARN"
         # Guardamos la variable en el entorno de Actions
         echo "OIDC_ARN=$PROVIDER_ARN" >> $GITHUB_ENV
-    
-    # 3) Eliminar el OIDC Provider de IAM
     - name: Delete OIDC Provider
       run: |
         echo "Deleting OIDC provider ${{ env.OIDC_ARN }}"
         aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "${{ env.OIDC_ARN }}" || true
-
     - name: Delete all PVCs
       run: kubectl delete pvc --all -n $NAMESPACE  
     - name: Delete all ConfigMaps
       run: kubectl delete configmap --all -n $NAMESPACE  
     - name: Delete all Secrets
       run: kubectl delete secret --all -n $NAMESPACE  
+    - name: Setup Terraform with specified version on the runner
+      uses: hashicorp/setup-terraform@v2
+    - name: Terraform init
+      id: init
+      working-directory: ./Terraform
+      run: terraform init 
     - name: Destroy Terraform resources
       id: destroy
       working-directory: ./Terraform

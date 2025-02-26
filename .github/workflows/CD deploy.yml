@@ -3,7 +3,7 @@ name: CD - Deploy Alfresco to Amazon EKS
 on:
   push:
     branches:
-      - Deployement
+      - Deploy
 
 env:
   # Credentials for deployment to AWS
@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   CICD_Alfresco:
-    name: Install dependencies
+    name: Deploy ACS to Amazon EKS
     runs-on: ubuntu-latest
     environment: production
     defaults:
@@ -241,6 +241,7 @@ jobs:
       run: | 
         kubectl get pods -n ${NAMESPACE}
         kubectl get pods -n kube-system
+  # Alfresco Services Deployment & Validation
     - name: Create Docker Registry Secret if not exists
       run: |
         kubectl get secret quay-registry-secret -n ${NAMESPACE} || \
